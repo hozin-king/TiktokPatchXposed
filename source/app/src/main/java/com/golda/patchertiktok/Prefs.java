@@ -83,6 +83,13 @@ final class Prefs {
     static final String FAKE_VERIFIED = "fake_verified";
     /** Fake LIVE ring on your avatar; local rendering only. */
     static final String FAKE_LIVE = "fake_live";
+    /** Fake gift animations while watching lives/videos; local rendering only. On by default. */
+    static final String FAKE_GIFT = "fake_gift";
+    /** Fake streak day count shown in chats; local rendering only. */
+    static final String FAKE_STREAK = "fake_streak";
+    /** Day count shown when {@link #FAKE_STREAK} is on. */
+    static final String FAKE_STREAK_DAYS = "fake_streak_days";
+    static final int DEFAULT_FAKE_STREAK_DAYS = 100;
     /** Report a flagship device model instead of the real one. */
     static final String DEVICE_SPOOF = "device_spoof";
     /** Selected flagship profile id, e.g. "s24ultra"; empty for none. */
@@ -172,6 +179,9 @@ final class Prefs {
         DEFAULTS.put(AUTO_STREAK, false);
         DEFAULTS.put(FAKE_VERIFIED, false);
         DEFAULTS.put(FAKE_LIVE, false);
+        // Fake gifts are visible immediately; the toggle only disables them.
+        DEFAULTS.put(FAKE_GIFT, true);
+        DEFAULTS.put(FAKE_STREAK, false);
         DEFAULTS.put(DEVICE_SPOOF, false);
         DEFAULTS.put(BIO_LIMIT, false);
         DEFAULTS.put(UPLOAD_HD, false);
@@ -200,6 +210,7 @@ final class Prefs {
         for (String key : new String[]{FILTER_WORDS, FILTER_AUTHORS, SPEEDS, TRANSLATE_EXCLUDE, STREAK_STICKER,
                 STREAK_STICKER_TITLE, ANDROID_ID, DEVICE_SPOOF_MODEL}) TEXTS.put(key, loaded.getString(key, ""));
         for (String key : new String[]{FILTER_MIN_LIKES, FILTER_MIN_VIEWS}) NUMBERS.put(key, loaded.getLong(key, 0));
+        NUMBERS.put(FAKE_STREAK_DAYS, loaded.getLong(FAKE_STREAK_DAYS, DEFAULT_FAKE_STREAK_DAYS));
         NUMBERS.put(ACCENT_COLOR, loaded.getLong(ACCENT_COLOR, DEFAULT_ACCENT));
         NUMBERS.put(OVERLAY_OPACITY, loaded.getLong(OVERLAY_OPACITY, 100));
         rebuildRules();
@@ -208,7 +219,8 @@ final class Prefs {
     /** Text strings, numbers and the region, besides the switches in {@link #DEFAULTS}. */
     private static final String[] TEXT_KEYS = {REGION, FILTER_WORDS, FILTER_AUTHORS, SPEEDS, TRANSLATE_EXCLUDE,
             STREAK_STICKER, STREAK_STICKER_TITLE, DEVICE_SPOOF_MODEL};
-    private static final String[] LONG_KEYS = {FILTER_MIN_LIKES, FILTER_MIN_VIEWS, ACCENT_COLOR, OVERLAY_OPACITY};
+    private static final String[] LONG_KEYS = {FILTER_MIN_LIKES, FILTER_MIN_VIEWS, ACCENT_COLOR, OVERLAY_OPACITY,
+            FAKE_STREAK_DAYS};
 
     /** All settings as JSON, for a backup the user keeps wherever they like. */
     static String export() {

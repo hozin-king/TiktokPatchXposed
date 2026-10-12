@@ -168,7 +168,7 @@
 - Saat menonton live, tampilkan/salin URL stream langsung (bukan link share vt.tiktok.com)
   agar bisa dibuka di pemutar eksternal. Catatan: URL biasanya bertanda tangan & kedaluwarsa.
 
-## 11. Fake gift live (riset 2026-10-12, status: MUNGKIN)
+## 11. Fake gift live (riset 2026-10-12, status: IMPLEMENTED 2026-10-12)
 - Skenario: saat menonton live orang, tombol floating memicu ANIMASI gift (mawar, paus, dsb)
   secara lokal TANPA benar-benar mengirim gift (tanpa koin). Murni kosmetik di perangkat sendiri.
 - Hasil bedah APK 47.0.3 (androguard, semua klaim terverifikasi dari dex):
@@ -197,3 +197,11 @@
   daftar gift butuh panel gift pernah dibuka (cache); aset video effect bisa diunduh on-demand
   dari URL asli (wajar). Perlu verifikasi runtime di HP.
 - ATURAN: JANGAN EVER memanggil alur kirim gift sungguhan (`GiftService`/`sendGift`/API payment).
+**Implementasi 2026-10-12:** `FakeGift.java` — hook konstruktor `GiftManager` + `LiveGiftEffectWidget`
+untuk capture instance; tombol trigger "🎁" diinjeksikan ke panel gift live
+(`GiftAnchorPanelSheetFragment.onViewCreated`) dan panel komentar live
+(`LiveCommentSheetPanel` onCreateView); picker gift dari `getCurrentGiftPanelList()`;
+`play()` membangun `GiftMessage` palsu dan memanggil `widget.onGiftMessage(msg)` langsung.
+Toggle `fake_gift` default ON di pengaturan (Sosial). MURNI animasi lokal — tidak menyentuh
+API kirim gift/pembayaran. Perlu verifikasi runtime di HP.
+

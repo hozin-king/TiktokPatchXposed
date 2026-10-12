@@ -306,6 +306,8 @@ public final class ModSettingsActivity extends Activity {
             new Setting(Category.SOCIAL, S.COMMENT_REPOSTS, S.COMMENT_REPOSTS_DESC, Prefs.COMMENT_REPOSTS),
             new Setting(Category.SOCIAL, S.FAKE_VERIFIED, S.FAKE_VERIFIED_DESC, Prefs.FAKE_VERIFIED),
             new Setting(Category.SOCIAL, S.FAKE_LIVE, S.FAKE_LIVE_DESC, Prefs.FAKE_LIVE),
+            new Setting(Category.SOCIAL, S.FAKE_GIFT, S.FAKE_GIFT_DESC, Prefs.FAKE_GIFT),
+            new Setting(Category.SOCIAL, S.FAKE_STREAK, S.FAKE_STREAK_DESC, Prefs.FAKE_STREAK),
             new Setting(Category.SOCIAL, S.BIO_LIMIT, S.BIO_LIMIT_DESC, Prefs.BIO_LIMIT),
             new Setting(Category.SOCIAL, S.NEW_PROFILE, S.NEW_PROFILE_DESC, Prefs.NEW_PROFILE),
             new Setting(Category.SOCIAL, S.EXTRA_FEATURES, S.EXTRA_FEATURES_DESC, Prefs.EXTRA_FEATURES),
@@ -449,7 +451,7 @@ public final class ModSettingsActivity extends Activity {
             for (String[] entry : FEATURE_TITLES) {
                 if (entry[0].equals(feature)) title = I18n.get(S.valueOf(entry[1]));
             }
-            if (title == null) continue;
+            if (title == null) title = feature;
             String problem = FeatureStatus.problem(feature);
             LinearLayout row = row(card);
             row.setBackground(null);
@@ -604,9 +606,14 @@ public final class ModSettingsActivity extends Activity {
             TextView value = navigation(card, I18n.get(S.TRANSLATE_EXCLUDE), Prefs.text(Prefs.TRANSLATE_EXCLUDE),
                     view -> push(excludePage(), true));
             View row = (View) value.getParent();
+            TextView streakValue = navigation(card, I18n.get(S.FAKE_STREAK_DAYS), streakDaysLabel(),
+                    view -> push(streakDaysPage(), true));
+            View streakRow = (View) streakValue.getParent();
             Runnable sync = () -> {
                 value.setText(Prefs.text(Prefs.TRANSLATE_EXCLUDE));
                 row.setVisibility(Prefs.on(Prefs.AUTO_TRANSLATE) ? View.VISIBLE : View.GONE);
+                streakValue.setText(streakDaysLabel());
+                streakRow.setVisibility(Prefs.on(Prefs.FAKE_STREAK) ? View.VISIBLE : View.GONE);
             };
             sync.run();
             page.root.setTag(sync);
@@ -1439,6 +1446,50 @@ public final class ModSettingsActivity extends Activity {
             if (AGE_DAYS[index] == days) return I18n.get(AGE_NAMES[index]);
         }
         return String.format(locale, I18n.get(S.AGE_DAYS), days);
+    }
+
+    private String streakDaysLabel() {
+        return String.valueOf(Prefs.number(Prefs.FAKE_STREAK_DAYS));
+    }
+
+    /** Number input for the fake streak day count. */
+    private View streakDaysPage() {
+        Page page = new Page(I18n.get(S.FAKE_STREAK_DAYS), false);
+        LinearLayout card = page.card();
+        LinearLayout row = row(card);
+        row.setBackground(null);
+        EditText field = new EditText(this);
+        field.setBackground(null);
+        field.setPadding(0, 0, 0, 0);
+        field.setHint(streakDaysLabel());
+        field.setHintTextColor(palette.textSecondary);
+        field.setTextColor(palette.textPrimary);
+        field.setTextSize(17);
+        field.setTypeface(Fonts.semibold(this));
+        field.setSingleLine(true);
+        field.setInputType(InputType.TYPE_CLASS_NUMBER);
+        field.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});
+        field.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        field.setText(streakDaysLabel());
+        row.addView(field, new LinearLayout.LayoutParams(0, -2, 1));
+        ImageView check = new ImageView(this);
+        check.setImageDrawable(new Glyph(Glyph.Kind.CHECK, palette.accent, dp(22)));
+        row.addView(check, new LinearLayout.LayoutParams(dp(22), dp(22)));
+        row.setOnClickListener(view -> field.requestFocus());
+        field.setOnEditorActionListener((view, action, event) -> {
+            long days;
+            try {
+                days = Long.parseLong(field.getText().toString().trim());
+            } catch (NumberFormatException error) {
+                days = 0;
+            }
+            if (days > 0) {
+                Prefs.setNumber(Prefs.FAKE_STREAK_DAYS, days);
+                pop();
+            }
+            return true;
+        });
+        return page.root;
     }
 
     private String regionLabel() {
