@@ -1006,11 +1006,12 @@ public final class ModSettingsActivity extends Activity {
         return page.root;
     }
 
+    private static final int HISTORY_PAGE_SIZE = 50;
+
     private View historyPage() {
         Page page = new Page(I18n.get(S.WATCH_HISTORY_TITLE), true);
         LinearLayout card = page.card();
-        java.util.List<WatchHistory.Entry> entries = WatchHistory.entries(this);
-        if (entries.isEmpty()) {
+        if (WatchHistory.count(this) == 0) {
             android.widget.TextView empty = new android.widget.TextView(this);
             empty.setText(I18n.get(S.WATCH_HISTORY_EMPTY));
             empty.setTextColor(palette.textSecondary);
@@ -1018,37 +1019,71 @@ public final class ModSettingsActivity extends Activity {
             empty.setGravity(android.view.Gravity.CENTER);
             empty.setPadding(dp(24), dp(32), dp(24), dp(32));
             card.addView(empty);
+            return page.root;
         }
-        java.text.DateFormat date = java.text.DateFormat.getDateTimeInstance(
+        final android.widget.LinearLayout list = new android.widget.LinearLayout(this);
+        list.setOrientation(android.widget.LinearLayout.VERTICAL);
+        card.addView(list);
+        final java.text.DateFormat date = java.text.DateFormat.getDateTimeInstance(
                 java.text.DateFormat.SHORT, java.text.DateFormat.SHORT, locale);
-        for (WatchHistory.Entry entry : entries) {
-            android.widget.LinearLayout row = row(card);
-            String title = entry.author.isEmpty() ? entry.aid : entry.author;
-            String subtitle = (entry.desc.isEmpty() ? "" : entry.desc + "\n")
-                    + date.format(new java.util.Date(entry.time));
-            texts(row, title, subtitle);
-            row.setOnClickListener(view -> openVideo(entry.aid));
-        }
-        if (!entries.isEmpty()) {
-            android.widget.Button clear = new android.widget.Button(this);
-            clear.setText(I18n.get(S.WATCH_HISTORY_CLEAR));
-            clear.setOnClickListener(view -> {
-                WatchHistory.clear(this);
-                push(historyPage(), false);
-            });
-            android.widget.LinearLayout.LayoutParams params =
-                    new android.widget.LinearLayout.LayoutParams(-1, -2);
-            params.setMargins(dp(16), dp(16), dp(16), dp(16));
-            page.root.addView(clear, params);
-        }
+        final int[] loaded = {0};
+        final boolean[] loading = {false};
+        final android.widget.Button moreButton = new android.widget.Button(this);
+        moreButton.setText(I18n.get(S.LOAD_MORE));
+        Runnable more = new Runnable() {
+            @Override public void run() {
+                if (loading[0]) return;
+                loading[0] = true;
+                try {
+                    java.util.List<WatchHistory.Entry> batch =
+                            WatchHistory.entries(ModSettingsActivity.this, loaded[0], HISTORY_PAGE_SIZE);
+                    for (WatchHistory.Entry entry : batch) {
+                        android.widget.LinearLayout row = row(list);
+                        String title = entry.author.isEmpty() ? entry.aid : entry.author;
+                        String subtitle = (entry.desc.isEmpty() ? "" : entry.desc + "\n")
+                                + date.format(new java.util.Date(entry.time));
+                        texts(row, title, subtitle);
+                        row.setOnClickListener(view -> openVideo(entry.aid));
+                    }
+                    loaded[0] += batch.size();
+                    moreButton.setVisibility(
+                            loaded[0] < WatchHistory.count(ModSettingsActivity.this)
+                                    ? android.view.View.VISIBLE : android.view.View.GONE);
+                } finally {
+                    loading[0] = false;
+                }
+            }
+        };
+        moreButton.setOnClickListener(view -> more.run());
+        android.widget.LinearLayout.LayoutParams moreParams =
+                new android.widget.LinearLayout.LayoutParams(-1, -2);
+        moreParams.setMargins(dp(16), dp(8), dp(16), dp(8));
+        card.addView(moreButton, moreParams);
+        page.onBottom(more);
+        more.run();
+        android.widget.Button clear = new android.widget.Button(this);
+        clear.setText(I18n.get(S.WATCH_HISTORY_CLEAR));
+        clear.setOnClickListener(view -> {
+            WatchHistory.clear(this);
+            push(historyPage(), false);
+        });
+        android.widget.LinearLayout.LayoutParams params =
+                new android.widget.LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(dp(16), dp(16), dp(16), dp(16));
+        page.root.addView(clear, params);
         return page.root;
     }
 
     private void openVideo(String aid) {
         try {
+            // Deep link verified from TikTok 47.0.3: the "tiktok" scheme is declared
+            // in the manifest (handled by com.ss.android.ugc.aweme.deeplink.AppLinkHandlerV2)
+            // and the route "aweme://aweme/detail/:id" is used in the dex.
+            // setPackage forces TikTok itself so this never lands in a browser.
             android.content.Intent intent = new android.content.Intent(
                     android.content.Intent.ACTION_VIEW,
-                    android.net.Uri.parse("https://www.tiktok.com/video/" + aid));
+                    android.net.Uri.parse("tiktok://aweme/detail/" + aid));
+            intent.setPackage(getPackageName());
             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
         } catch (Throwable ignored) { }
@@ -1057,8 +1092,7 @@ public final class ModSettingsActivity extends Activity {
     private View liveUrlPage() {
         Page page = new Page(I18n.get(S.LIVE_STREAM_URL), true);
         LinearLayout card = page.card();
-        LiveStreamUrl.Captured captured = LiveStreamUrl.latest();
-        if (captured == null) {
+        if (LiveStreamUrl.count(this) == 0) {
             android.widget.TextView empty = new android.widget.TextView(this);
             empty.setText(I18n.get(S.LIVE_STREAM_URL_EMPTY));
             empty.setTextColor(palette.textSecondary);
@@ -1077,56 +1111,56 @@ public final class ModSettingsActivity extends Activity {
         warning.setPadding(dp(16), dp(12), dp(16), dp(4));
         card.addView(warning);
 
-        java.text.DateFormat date = java.text.DateFormat.getDateTimeInstance(
+        final android.widget.LinearLayout list = new android.widget.LinearLayout(this);
+        list.setOrientation(android.widget.LinearLayout.VERTICAL);
+        card.addView(list);
+        final java.text.DateFormat date = java.text.DateFormat.getDateTimeInstance(
                 java.text.DateFormat.SHORT, java.text.DateFormat.SHORT, locale);
-        android.widget.TextView capturedAt = new android.widget.TextView(this);
-        capturedAt.setText(date.format(new java.util.Date(captured.time)));
-        capturedAt.setTextColor(palette.textSecondary);
-        capturedAt.setTextSize(13);
-        capturedAt.setPadding(dp(16), dp(0), dp(16), dp(8));
-        card.addView(capturedAt);
-
-        if (captured.rtmpUrl != null && !captured.rtmpUrl.isEmpty()) {
-            addUrlRow(card, "RTMP", captured.rtmpUrl);
-        }
-        for (java.util.Map.Entry<String, String> entry : captured.flvUrls.entrySet()) {
-            addUrlRow(card, "FLV " + entry.getKey(), entry.getValue());
-        }
+        final int[] loaded = {0};
+        final boolean[] loading = {false};
+        final android.widget.Button moreButton = new android.widget.Button(this);
+        moreButton.setText(I18n.get(S.LOAD_MORE));
+        Runnable more = new Runnable() {
+            @Override public void run() {
+                if (loading[0]) return;
+                loading[0] = true;
+                try {
+                    java.util.List<LiveStreamUrl.Captured> batch =
+                            LiveStreamUrl.page(ModSettingsActivity.this, loaded[0], HISTORY_PAGE_SIZE);
+                    for (LiveStreamUrl.Captured captured : batch) {
+                        android.widget.TextView capturedAt = new android.widget.TextView(ModSettingsActivity.this);
+                        capturedAt.setText(date.format(new java.util.Date(captured.time)));
+                        capturedAt.setTextColor(palette.textSecondary);
+                        capturedAt.setTextSize(13);
+                        capturedAt.setTypeface(Fonts.semibold(ModSettingsActivity.this));
+                        capturedAt.setPadding(dp(16), dp(12), dp(16), dp(4));
+                        list.addView(capturedAt);
+                        if (captured.rtmpUrl != null && !captured.rtmpUrl.isEmpty()) {
+                            addUrlRow(list, "RTMP", captured.rtmpUrl);
+                        }
+                        for (java.util.Map.Entry<String, String> entry : captured.flvUrls.entrySet()) {
+                            addUrlRow(list, "FLV " + entry.getKey(), entry.getValue());
+                        }
+                    }
+                    loaded[0] += batch.size();
+                    moreButton.setVisibility(
+                            loaded[0] < LiveStreamUrl.count(ModSettingsActivity.this)
+                                    ? android.view.View.VISIBLE : android.view.View.GONE);
+                } finally {
+                    loading[0] = false;
+                }
+            }
+        };
+        moreButton.setOnClickListener(view -> more.run());
+        android.widget.LinearLayout.LayoutParams moreParams =
+                new android.widget.LinearLayout.LayoutParams(-1, -2);
+        moreParams.setMargins(dp(16), dp(8), dp(16), dp(8));
+        card.addView(moreButton, moreParams);
+        page.onBottom(more);
+        more.run();
         return page.root;
     }
 
-    private void addUrlRow(LinearLayout card, String label, final String url) {
-        android.widget.LinearLayout row = row(card);
-        android.widget.LinearLayout texts = new android.widget.LinearLayout(this);
-        texts.setOrientation(android.widget.LinearLayout.VERTICAL);
-        android.widget.TextView titleView = new android.widget.TextView(this);
-        titleView.setText(label);
-        titleView.setTextColor(palette.textPrimary);
-        titleView.setTextSize(16);
-        titleView.setTypeface(Fonts.semibold(this));
-        texts.addView(titleView);
-        android.widget.TextView urlView = new android.widget.TextView(this);
-        urlView.setText(url);
-        urlView.setTextColor(palette.textSecondary);
-        urlView.setTextSize(12);
-        urlView.setTypeface(Fonts.regular(this));
-        urlView.setSingleLine(true);
-        urlView.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
-        texts.addView(urlView);
-        row.addView(texts, new android.widget.LinearLayout.LayoutParams(0, -2, 1));
-        android.widget.Button copy = new android.widget.Button(this);
-        copy.setText(I18n.get(S.LIVE_STREAM_URL_COPY));
-        copy.setOnClickListener(view -> {
-            android.content.ClipboardManager clipboard =
-                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-            if (clipboard != null) {
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("live-url", url));
-            }
-        });
-        row.addView(copy);
-        row.setOnClickListener(null);
-        row.setClickable(false);
-    }
 
     /** Speeds offered in TikTok's own speed menu. */
     private View speedsPage() {
@@ -1550,6 +1584,10 @@ public final class ModSettingsActivity extends Activity {
         final LinearLayout content = new LinearLayout(ModSettingsActivity.this);
         private final ScrollView scroll = new ScrollView(ModSettingsActivity.this);
         private final FrameLayout toolbar = new FrameLayout(ModSettingsActivity.this);
+        private Runnable bottomCallback;
+
+        /** Called when the user scrolls near the bottom (for lazy loading). */
+        void onBottom(Runnable callback) { bottomCallback = callback; }
 
         Page(String title, boolean root) {
             this.root.setBackgroundColor(palette.background);
@@ -1602,9 +1640,14 @@ public final class ModSettingsActivity extends Activity {
             }
             TextView largeTitle = large;
             scroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> {
-                if (largeTitle == null) return;
-                float fade = Math.max(0f, Math.min(1f, (y - largeTitle.getHeight() * 0.5f) / (largeTitle.getHeight() * 0.4f)));
-                small.setAlpha(fade);
+                if (largeTitle != null) {
+                    float fade = Math.max(0f, Math.min(1f, (y - largeTitle.getHeight() * 0.5f) / (largeTitle.getHeight() * 0.4f)));
+                    small.setAlpha(fade);
+                }
+                if (bottomCallback != null && scroll.getChildAt(0) != null) {
+                    int distance = scroll.getChildAt(0).getHeight() - scroll.getHeight() - y;
+                    if (distance < dp(400)) bottomCallback.run();
+                }
             });
             this.root.setTag(R_ID_CONTENT, content);
             this.root.setTag(R_ID_INSETS, (Insettable) (top, bottom) -> {

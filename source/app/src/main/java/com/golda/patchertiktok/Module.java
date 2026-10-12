@@ -97,7 +97,7 @@ final class Module {
         run("settings row", () -> SettingsEntry.install(app, loader));
         run("auto streaks", () -> AutoStreakManager.install(app, loader));
         run("watch history", () -> WatchHistory.install(app, loader));
-        run("live stream url", () -> LiveStreamUrl.install(loader));
+        run("live stream url", () -> LiveStreamUrl.install(app, loader));
         Discovery.release();
         RuntimeLog.log(BuildConfig.VERSION_NAME + " started in " + app.getPackageName());
     }

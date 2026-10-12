@@ -1,23 +1,15 @@
 package com.golda.patchertiktok;
 
 import android.content.Context;
-import android.content.SharedPreferences;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Records videos played in the feed — TikTok has no watch history of its own.
- * Entries live in TikTok's own data directory, newest first, capped at 200.
+ * Entries live in a local SQLite database (see {@link HistoryDb}), newest first.
  */
 final class WatchHistory {
-    private static final String FILE = "tiktokpatchxposed_history";
-    private static final String KEY = "entries";
-    private static final int MAX = 200;
     private static final String PANEL = "com.ss.android.ugc.aweme.feed.panel.BaseListFragmentPanel";
 
     static final class Entry {
@@ -37,6 +29,7 @@ final class WatchHistory {
     private WatchHistory() { }
 
     static void install(Context context, ClassLoader loader) {
+        HistoryDb.migrateIfNeeded(context);
         Class<?> panel = Hooks.findClass(PANEL, loader);
         Method current = panel == null ? null : RenderedAdSkip.currentAweme(panel);
         if (panel == null || current == null) {
@@ -83,50 +76,19 @@ final class WatchHistory {
             Object text = Reflect.call(aweme, "getDesc");
             if (text instanceof String) desc = (String) text;
         } catch (Throwable ignored) { }
-        try {
-            SharedPreferences prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE);
-            JSONArray array = new JSONArray(prefs.getString(KEY, "[]"));
-            // Drop any older entry for the same video, then prepend.
-            JSONArray fresh = new JSONArray();
-            fresh.put(entryJson(aid, author, desc, System.currentTimeMillis()));
-            for (int i = 0; i < array.length() && fresh.length() < MAX; i++) {
-                JSONObject old = array.optJSONObject(i);
-                if (old != null && aid.equals(old.optString("aid"))) continue;
-                fresh.put(old);
-            }
-            prefs.edit().putString(KEY, fresh.toString()).apply();
-        } catch (Throwable ignored) { }
+        HistoryDb.recordVideo(context, aid, author, desc);
     }
 
-    private static JSONObject entryJson(String aid, String author, String desc, long time) {
-        JSONObject json = new JSONObject();
-        try {
-            json.put("aid", aid);
-            json.put("author", author);
-            json.put("desc", desc);
-            json.put("time", time);
-        } catch (org.json.JSONException ignored) { }
-        return json;
+    /** Newest-first page of entries. */
+    static List<Entry> entries(Context context, int offset, int limit) {
+        return HistoryDb.videoPage(context, offset, limit);
     }
 
-    static List<Entry> entries(Context context) {
-        List<Entry> out = new ArrayList<>();
-        try {
-            SharedPreferences prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE);
-            JSONArray array = new JSONArray(prefs.getString(KEY, "[]"));
-            for (int i = 0; i < array.length(); i++) {
-                JSONObject json = array.optJSONObject(i);
-                if (json == null) continue;
-                out.add(new Entry(json.optString("aid"), json.optString("author"),
-                        json.optString("desc"), json.optLong("time")));
-            }
-        } catch (Throwable ignored) { }
-        return out;
+    static int count(Context context) {
+        return HistoryDb.videoCount(context);
     }
 
     static void clear(Context context) {
-        try {
-            context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit().remove(KEY).apply();
-        } catch (Throwable ignored) { }
+        HistoryDb.clearVideos(context);
     }
 }
