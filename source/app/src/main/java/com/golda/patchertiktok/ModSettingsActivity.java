@@ -304,6 +304,7 @@ public final class ModSettingsActivity extends Activity {
             new Setting(Category.INTERFACE, S.AMOLED, S.AMOLED_DESC, Prefs.AMOLED),
             new Setting(Category.INTERFACE, S.NO_LOGIN_WALL, S.NO_LOGIN_WALL_DESC, Prefs.NO_LOGIN_WALL),
             new Setting(Category.SOCIAL, S.COMMENT_REPOSTS, S.COMMENT_REPOSTS_DESC, Prefs.COMMENT_REPOSTS),
+            new Setting(Category.SOCIAL, S.FAKE_VERIFIED, S.FAKE_VERIFIED_DESC, Prefs.FAKE_VERIFIED),
             new Setting(Category.SOCIAL, S.NEW_PROFILE, S.NEW_PROFILE_DESC, Prefs.NEW_PROFILE),
             new Setting(Category.SOCIAL, S.EXTRA_FEATURES, S.EXTRA_FEATURES_DESC, Prefs.EXTRA_FEATURES),
             new Setting(Category.SOCIAL, S.COPY_COMMENT, S.COPY_COMMENT_DESC, Prefs.COPY_COMMENT_TEXT),

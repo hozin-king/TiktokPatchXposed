@@ -96,6 +96,7 @@ final class Module {
         run("seekbar", () -> Seekbar.install(loader));
         run("settings row", () -> SettingsEntry.install(app, loader));
         run("auto streaks", () -> AutoStreakManager.install(app, loader));
+        run("fake verified", () -> FakeVerified.install(loader));
         run("watch history", () -> WatchHistory.install(app, loader));
         run("live stream url", () -> LiveStreamUrl.install(app, loader));
         Discovery.release();
