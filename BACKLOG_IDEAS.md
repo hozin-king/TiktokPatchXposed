@@ -13,6 +13,25 @@
 ## 3. (sudah dibahas) Upload HD maksimal via override eksperimen
 ## 4. (sudah dibahas) Centang verifikasi fake (lokal; antar-pengguna modul via daftar ID)
 
+### Hasil riset hook (2026-10-12, APK com.ss.android.ugc.trill v47.0.3, base.apk/classes2.dex)
+- **MUNGKIN** — kandidat hook VALID ditemukan via androguard (bukan karangan):
+- Model: `com.ss.android.ugc.aweme.profile.model.User` (367 field, 673 method;
+  `Serializable`+`Cloneable` — model Gson dari server).
+- **TIDAK ADA field boolean `isVerified`** di versi ini (pendekatan lama tidak berlaku).
+- Field verifikasi yang ada:
+  - `verificationType: int` → `getVerificationType()I` + `setVerificationType(I)V` (public, ada setter)
+  - `verificationBadgeType: int` → `getVerificationBadgeType()I` (hanya getter, tanpa setter)
+  - `verifyInfo: String` → getter + setter
+  - `customVerify: String` → getter + setter
+  - `enterpriseVerifyReason: String` → getter + setter
+  - (`isVerifiedTako: int` = terkait asisten AI Tako, BUKAN badge profil — jangan dipakai)
+- `User$VerificationType` adalah annotation interface gaya `@IntDef` (hanya konstanta `DEFAULT`).
+- Kandidat hook: `User.getVerificationType()` (kembalikan nilai verified non-nol) dan/atau
+  `User.getVerificationBadgeType()`. Field bersifat mutable, tidak ada indikasi signing kriptografis.
+- Batasan jujur: rantai render UI persisnya (View mana yang membaca field ini) belum dipetakan
+  (XREF lintas-dex mahal); verifikasi runtime via mekanisme Discovery modul — hook getter lalu
+  amati badge di profil. Fake tetap lokal saja (server tetap menganggap unverified).
+
 ## 5. Riwayat tontonan (disetujui user 2026-10-12)
 - Catat video yang sudah ditonton + UI untuk membuka lagi.
 

@@ -1161,6 +1161,38 @@ public final class ModSettingsActivity extends Activity {
         return page.root;
     }
 
+    private void addUrlRow(LinearLayout card, String label, final String url) {
+        android.widget.LinearLayout row = row(card);
+        android.widget.LinearLayout texts = new android.widget.LinearLayout(this);
+        texts.setOrientation(android.widget.LinearLayout.VERTICAL);
+        android.widget.TextView titleView = new android.widget.TextView(this);
+        titleView.setText(label);
+        titleView.setTextColor(palette.textPrimary);
+        titleView.setTextSize(16);
+        titleView.setTypeface(Fonts.semibold(this));
+        texts.addView(titleView);
+        android.widget.TextView urlView = new android.widget.TextView(this);
+        urlView.setText(url);
+        urlView.setTextColor(palette.textSecondary);
+        urlView.setTextSize(12);
+        urlView.setTypeface(Fonts.regular(this));
+        urlView.setSingleLine(true);
+        urlView.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        texts.addView(urlView);
+        row.addView(texts, new android.widget.LinearLayout.LayoutParams(0, -2, 1));
+        android.widget.Button copy = new android.widget.Button(this);
+        copy.setText(I18n.get(S.LIVE_STREAM_URL_COPY));
+        copy.setOnClickListener(view -> {
+            android.content.ClipboardManager clipboard =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("live-url", url));
+            }
+        });
+        row.addView(copy);
+        row.setOnClickListener(null);
+        row.setClickable(false);
+    }
 
     /** Speeds offered in TikTok's own speed menu. */
     private View speedsPage() {
