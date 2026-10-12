@@ -27,5 +27,10 @@
                 <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
             </intent-filter>
         </activity>
+
+        <!-- Best-effort streak reminder while TikTok is closed; fires in our own process. -->
+        <receiver
+            android:name=".StreakAlarmReceiver"
+            android:exported="false" />
     </application>
 </manifest>

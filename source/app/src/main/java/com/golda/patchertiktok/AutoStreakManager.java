@@ -30,6 +30,8 @@ final class AutoStreakManager {
     private static volatile StreakSender sender;
     private static volatile long lastCheckElapsed;
     private static volatile int startupRetries;
+    /** Absolute wall-clock millis of the next streak risk, for the background alarm. */
+    private static volatile long lastNextRisk = Long.MAX_VALUE;
     private static boolean lastEnabled;
 
     private AutoStreakManager() { }
@@ -61,8 +63,13 @@ final class AutoStreakManager {
 
     private static boolean enabled() { return Prefs.on(Prefs.AUTO_STREAK); }
 
+    private static boolean reminderOn() { return Prefs.on(Prefs.STREAK_REMINDER); }
+
+    /** Either automation needs the check cycle running. */
+    private static boolean active() { return enabled() || reminderOn(); }
+
     private static void onSettingsChanged() {
-        boolean now = enabled();
+        boolean now = active();
         if (now == lastEnabled) return;
         lastEnabled = now;
         if (!now) stop();
@@ -72,7 +79,8 @@ final class AutoStreakManager {
     private static void onForeground() {
         foreground = true;
         startupRetries = 0;
-        if (enabled()) {
+        StreakReminder.cancelBackgroundAlarm(context);
+        if (active()) {
             long remaining = MIN_CHECK_INTERVAL_MS - (SystemClock.elapsedRealtime() - lastCheckElapsed);
             schedule(Math.max(openDelay(), remaining));
         }
@@ -86,6 +94,10 @@ final class AutoStreakManager {
     private static void onBackground() {
         foreground = false;
         stop();
+        // Best-effort nudge while TikTok is closed, only when reminders are on.
+        if (reminderOn() && lastNextRisk != Long.MAX_VALUE && context != null) {
+            StreakReminder.scheduleBackgroundAlarm(context, lastNextRisk);
+        }
     }
 
     private static void stop() {
@@ -101,11 +113,11 @@ final class AutoStreakManager {
 
     private static void schedule(long delay) {
         MAIN.removeCallbacks(CHECK);
-        if (enabled() && foreground) MAIN.postDelayed(CHECK, Math.max(1_000L, delay));
+        if (active() && foreground) MAIN.postDelayed(CHECK, Math.max(1_000L, delay));
     }
 
     private static void startCheck() {
-        if (!enabled() || !foreground || !RUNNING.compareAndSet(false, true)) return;
+        if (!active() || !foreground || !RUNNING.compareAndSet(false, true)) return;
         worker = new Thread(() -> {
             try {
                 ensureBindings();
@@ -134,6 +146,11 @@ final class AutoStreakManager {
 
     private static void scan(String account, List<?> items) throws Exception {
         List<StreakApi.Candidate> candidates = candidates(items, account);
+        // Reminder-only mode: auto streaks are off, just nudge about at-risk chats.
+        if (!enabled() && reminderOn()) {
+            remindOnly(account, items, candidates);
+            return;
+        }
         int confirmed = 0;
         int unresolved = 0;
         int skipped = 0;
@@ -178,9 +195,31 @@ final class AutoStreakManager {
         long next = Long.MAX_VALUE;
         long now = System.currentTimeMillis();
         for (Object item : items) next = Math.min(next, api.nextRiskMillis(item, now));
+        lastNextRisk = next;
         RuntimeLog.log("streak check: records=" + items.size() + " " + api.summary(items, now)
                 + " eligible=" + candidates.size() + " confirmed=" + confirmed + " unresolved=" + unresolved
                 + " skipped=" + skipped + (next == Long.MAX_VALUE ? "" : " nextRiskIn=" + (next - now) / 60_000L + "m"));
+        if (next != Long.MAX_VALUE) schedule(Math.max(MIN_CHECK_INTERVAL_MS, next - now + between(60_000L, 600_000L)));
+    }
+
+    /** Reminder-only pass: no sending, just notify about chats whose streak is at risk. */
+    private static void remindOnly(String account, List<?> items, List<StreakApi.Candidate> candidates) throws Exception {
+        long now = System.currentTimeMillis();
+        long next = Long.MAX_VALUE;
+        for (Object item : items) next = Math.min(next, api.nextRiskMillis(item, now));
+        lastNextRisk = next;
+        if (!candidates.isEmpty() && context != null) {
+            List<String> peers = new java.util.ArrayList<>();
+            for (StreakApi.Candidate candidate : candidates) {
+                if (candidate.peer != null && !candidate.peer.isEmpty()) peers.add(candidate.peer);
+            }
+            // Only nudge when the risk is within the next 6 hours; otherwise stay quiet.
+            if (next != Long.MAX_VALUE && next - now < 6 * 60 * 60 * 1000L) {
+                StreakReminder.notifyAtRisk(context, peers);
+            }
+        }
+        RuntimeLog.log("streak reminder check: eligible=" + candidates.size()
+                + (next == Long.MAX_VALUE ? "" : " nextRiskIn=" + (next - now) / 60_000L + "m"));
         if (next != Long.MAX_VALUE) schedule(Math.max(MIN_CHECK_INTERVAL_MS, next - now + between(60_000L, 600_000L)));
     }
 

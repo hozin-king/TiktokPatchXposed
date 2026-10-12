@@ -1,6 +1,6 @@
 # TiktokPatchXposed
 
-[Русский](README.md) | **English**
+[Русский](README-RU.md) | [Indonesia](README.md) | **English**
 
 > Tested on **TikTok 47.1.4** from Google Play and **Android 16**. Most features find what they
 > need in TikTok on their own, so they survive its updates. If something stops working after a

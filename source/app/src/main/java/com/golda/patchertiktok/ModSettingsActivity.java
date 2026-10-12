@@ -292,10 +292,12 @@ public final class ModSettingsActivity extends Activity {
             new Setting(Category.FEED, S.PROMO, S.PROMO_DESC, Prefs.PROMO),
             new Setting(Category.FEED, S.AI_CONTENT, S.AI_CONTENT_DESC, Prefs.AI_CONTENT),
             new Setting(Category.FEED, S.CUSTOM_FILTER, S.CUSTOM_FILTER_DESC, Prefs.CUSTOM_FILTER),
+            new Setting(Category.FEED, S.LIVE_STREAM_URL, S.LIVE_STREAM_URL_DESC, Prefs.LIVE_STREAM_URL),
             new Setting(Category.PLAYBACK, S.REMEMBER_CLEAN, S.REMEMBER_CLEAN_DESC, Prefs.REMEMBER_CLEAN),
             new Setting(Category.PLAYBACK, S.RESUME_POSITION, S.RESUME_POSITION_DESC, Prefs.RESUME_POSITION),
             new Setting(Category.PLAYBACK, S.AUTO_SCROLL, S.AUTO_SCROLL_DESC, Prefs.AUTO_SCROLL),
             new Setting(Category.PLAYBACK, S.REMEMBER_SPEED, S.REMEMBER_SPEED_DESC, Prefs.REMEMBER_SPEED),
+            new Setting(Category.PLAYBACK, S.WATCH_HISTORY, S.WATCH_HISTORY_DESC, Prefs.WATCH_HISTORY),
             new Setting(Category.INTERFACE, S.HIDE_INBOX_STORIES, S.HIDE_INBOX_STORIES_DESC, Prefs.HIDE_INBOX_STORIES),
             new Setting(Category.INTERFACE, S.BURN_IN, S.BURN_IN_DESC, Prefs.BURN_IN),
             new Setting(Category.INTERFACE, S.ACCENT, S.ACCENT_DESC, Prefs.ACCENT),
@@ -324,6 +326,7 @@ public final class ModSettingsActivity extends Activity {
             new Setting(Category.GHOST, S.HIDE_VPN, S.HIDE_VPN_DESC, Prefs.HIDE_VPN),
             new Setting(Category.GHOST, S.SPOOF_ANDROID_ID, S.SPOOF_ANDROID_ID_DESC, Prefs.SPOOF_ANDROID_ID),
             new Setting(Category.STREAKS, S.AUTO_STREAK, S.AUTO_STREAK_DESC, Prefs.AUTO_STREAK),
+            new Setting(Category.STREAKS, S.STREAK_REMINDER, S.STREAK_REMINDER_DESC, Prefs.STREAK_REMINDER),
     };
 
     private View mainPage() {
@@ -584,6 +587,14 @@ public final class ModSettingsActivity extends Activity {
                 if (Prefs.BURN_IN.equals(setting.key)) dim = toggle(card, S.BURN_IN_DIM, S.BURN_IN_DIM_DESC, Prefs.BURN_IN_DIM);
             }
         }
+        if (category == Category.PLAYBACK) {
+            TextView value = navigation(card, I18n.get(S.WATCH_HISTORY_TITLE), null,
+                    view -> push(historyPage(), true));
+            View row = (View) value.getParent();
+            Runnable sync = () -> row.setVisibility(Prefs.on(Prefs.WATCH_HISTORY) ? View.VISIBLE : View.GONE);
+            sync.run();
+            page.root.setTag(sync);
+        }
         if (category == Category.SOCIAL) {
             TextView value = navigation(card, I18n.get(S.TRANSLATE_EXCLUDE), Prefs.text(Prefs.TRANSLATE_EXCLUDE),
                     view -> push(excludePage(), true));
@@ -625,7 +636,13 @@ public final class ModSettingsActivity extends Activity {
         }
         if (category == Category.FEED) {
             View setup = (View) navigation(card, I18n.get(S.FILTER_SETUP), null, view -> push(filterPage(), true)).getParent();
-            Runnable sync = () -> setup.setVisibility(Prefs.on(Prefs.CUSTOM_FILTER) ? View.VISIBLE : View.GONE);
+            TextView urlValue = navigation(card, I18n.get(S.LIVE_STREAM_URL), null,
+                    view -> push(liveUrlPage(), true));
+            View urlRow = (View) urlValue.getParent();
+            Runnable sync = () -> {
+                setup.setVisibility(Prefs.on(Prefs.CUSTOM_FILTER) ? View.VISIBLE : View.GONE);
+                urlRow.setVisibility(Prefs.on(Prefs.LIVE_STREAM_URL) ? View.VISIBLE : View.GONE);
+            };
             sync.run();
             page.root.setTag(sync);
         }
@@ -987,6 +1004,128 @@ public final class ModSettingsActivity extends Activity {
         Page page = new Page(I18n.get(S.TRANSLATE_EXCLUDE), true);
         textField(page.card(), Prefs.TRANSLATE_EXCLUDE, I18n.get(S.TRANSLATE_EXCLUDE_HINT));
         return page.root;
+    }
+
+    private View historyPage() {
+        Page page = new Page(I18n.get(S.WATCH_HISTORY_TITLE), true);
+        LinearLayout card = page.card();
+        java.util.List<WatchHistory.Entry> entries = WatchHistory.entries(this);
+        if (entries.isEmpty()) {
+            android.widget.TextView empty = new android.widget.TextView(this);
+            empty.setText(I18n.get(S.WATCH_HISTORY_EMPTY));
+            empty.setTextColor(palette.textSecondary);
+            empty.setTextSize(15);
+            empty.setGravity(android.view.Gravity.CENTER);
+            empty.setPadding(dp(24), dp(32), dp(24), dp(32));
+            card.addView(empty);
+        }
+        java.text.DateFormat date = java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.SHORT, java.text.DateFormat.SHORT, locale);
+        for (WatchHistory.Entry entry : entries) {
+            android.widget.LinearLayout row = row(card);
+            String title = entry.author.isEmpty() ? entry.aid : entry.author;
+            String subtitle = (entry.desc.isEmpty() ? "" : entry.desc + "\n")
+                    + date.format(new java.util.Date(entry.time));
+            texts(row, title, subtitle);
+            row.setOnClickListener(view -> openVideo(entry.aid));
+        }
+        if (!entries.isEmpty()) {
+            android.widget.Button clear = new android.widget.Button(this);
+            clear.setText(I18n.get(S.WATCH_HISTORY_CLEAR));
+            clear.setOnClickListener(view -> {
+                WatchHistory.clear(this);
+                push(historyPage(), false);
+            });
+            android.widget.LinearLayout.LayoutParams params =
+                    new android.widget.LinearLayout.LayoutParams(-1, -2);
+            params.setMargins(dp(16), dp(16), dp(16), dp(16));
+            page.root.addView(clear, params);
+        }
+        return page.root;
+    }
+
+    private void openVideo(String aid) {
+        try {
+            android.content.Intent intent = new android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://www.tiktok.com/video/" + aid));
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Throwable ignored) { }
+    }
+
+    private View liveUrlPage() {
+        Page page = new Page(I18n.get(S.LIVE_STREAM_URL), true);
+        LinearLayout card = page.card();
+        LiveStreamUrl.Captured captured = LiveStreamUrl.latest();
+        if (captured == null) {
+            android.widget.TextView empty = new android.widget.TextView(this);
+            empty.setText(I18n.get(S.LIVE_STREAM_URL_EMPTY));
+            empty.setTextColor(palette.textSecondary);
+            empty.setTextSize(15);
+            empty.setGravity(android.view.Gravity.CENTER);
+            empty.setPadding(dp(24), dp(32), dp(24), dp(32));
+            card.addView(empty);
+            return page.root;
+        }
+        // Expiry warning first.
+        android.widget.TextView warning = new android.widget.TextView(this);
+        warning.setText(I18n.get(S.LIVE_STREAM_URL_EXPIRES));
+        warning.setTextColor(palette.textSecondary);
+        warning.setTextSize(14);
+        warning.setTypeface(Fonts.regular(this));
+        warning.setPadding(dp(16), dp(12), dp(16), dp(4));
+        card.addView(warning);
+
+        java.text.DateFormat date = java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.SHORT, java.text.DateFormat.SHORT, locale);
+        android.widget.TextView capturedAt = new android.widget.TextView(this);
+        capturedAt.setText(date.format(new java.util.Date(captured.time)));
+        capturedAt.setTextColor(palette.textSecondary);
+        capturedAt.setTextSize(13);
+        capturedAt.setPadding(dp(16), dp(0), dp(16), dp(8));
+        card.addView(capturedAt);
+
+        if (captured.rtmpUrl != null && !captured.rtmpUrl.isEmpty()) {
+            addUrlRow(card, "RTMP", captured.rtmpUrl);
+        }
+        for (java.util.Map.Entry<String, String> entry : captured.flvUrls.entrySet()) {
+            addUrlRow(card, "FLV " + entry.getKey(), entry.getValue());
+        }
+        return page.root;
+    }
+
+    private void addUrlRow(LinearLayout card, String label, final String url) {
+        android.widget.LinearLayout row = row(card);
+        android.widget.LinearLayout texts = new android.widget.LinearLayout(this);
+        texts.setOrientation(android.widget.LinearLayout.VERTICAL);
+        android.widget.TextView titleView = new android.widget.TextView(this);
+        titleView.setText(label);
+        titleView.setTextColor(palette.textPrimary);
+        titleView.setTextSize(16);
+        titleView.setTypeface(Fonts.semibold(this));
+        texts.addView(titleView);
+        android.widget.TextView urlView = new android.widget.TextView(this);
+        urlView.setText(url);
+        urlView.setTextColor(palette.textSecondary);
+        urlView.setTextSize(12);
+        urlView.setTypeface(Fonts.regular(this));
+        urlView.setSingleLine(true);
+        urlView.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        texts.addView(urlView);
+        row.addView(texts, new android.widget.LinearLayout.LayoutParams(0, -2, 1));
+        android.widget.Button copy = new android.widget.Button(this);
+        copy.setText(I18n.get(S.LIVE_STREAM_URL_COPY));
+        copy.setOnClickListener(view -> {
+            android.content.ClipboardManager clipboard =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("live-url", url));
+            }
+        });
+        row.addView(copy);
+        row.setOnClickListener(null);
+        row.setClickable(false);
     }
 
     /** Speeds offered in TikTok's own speed menu. */

@@ -79,6 +79,22 @@ final class Prefs {
     static final String SPOOF_ANDROID_ID = "spoof_android_id";
     /** The random Android ID shown instead of the real one; made once. */
     static final String ANDROID_ID = "android_id_value";
+    /** Fake verified badge on your own profile; local rendering only. */
+    static final String FAKE_VERIFIED = "fake_verified";
+    /** Force maximum upload quality via A/B experiment overrides. */
+    static final String UPLOAD_HD = "upload_hd";
+    /** Raise offline-video limits and quality via A/B experiment overrides. */
+    static final String OFFLINE_PLUS = "offline_plus";
+    /** Record videos played in the feed as a watch history. */
+    static final String WATCH_HISTORY = "watch_history";
+    /** Local notification when a streak is about to expire; auto streaks stay off. */
+    static final String STREAK_REMINDER = "streak_reminder";
+    /** Open locked mini-drama episodes when the video URL is already served. */
+    static final String MINI_DRAMA_UNLOCK = "mini_drama_unlock";
+    /** Download every episode of a drama playlist via the downloads engine. */
+    static final String DRAMA_DOWNLOAD = "drama_download";
+    /** Capture direct live stream URLs (RTMP/FLV) while watching a live. */
+    static final String LIVE_STREAM_URL = "live_stream_url";
     /** Languages left untranslated, e.g. "en, uk". */
     static final String TRANSLATE_EXCLUDE = "translate_exclude";
     /** Comma-separated speeds for TikTok's speed menu; empty keeps TikTok's own list. */
@@ -146,6 +162,14 @@ final class Prefs {
         DEFAULTS.put(SPOOF_ANDROID_ID, false);
         // Automated messages are opt-in only.
         DEFAULTS.put(AUTO_STREAK, false);
+        DEFAULTS.put(FAKE_VERIFIED, false);
+        DEFAULTS.put(UPLOAD_HD, false);
+        DEFAULTS.put(OFFLINE_PLUS, false);
+        DEFAULTS.put(WATCH_HISTORY, false);
+        DEFAULTS.put(STREAK_REMINDER, false);
+        DEFAULTS.put(MINI_DRAMA_UNLOCK, false);
+        DEFAULTS.put(DRAMA_DOWNLOAD, false);
+        DEFAULTS.put(LIVE_STREAM_URL, false);
     }
 
     private Prefs() { }

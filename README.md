@@ -1,267 +1,273 @@
 # TiktokPatchXposed
 
-**Русский** | [English](README-EN.md)
+**Indonesia** | [Русский](README-RU.md) | [English](README-EN.md)
 
-> Проверено на **TikTok 47.1.4** из Google Play и **Android 16**. Большинство функций сами
-> находят нужные места в TikTok, поэтому переживают его обновления. Если после обновления TikTok
-> что-то перестало работать, загляните в «Состояние функций» в настройках модуля и напишите в
+> Teruji pada **TikTok 47.1.4** dari Google Play dan **Android 16**. Sebagian besar fitur
+> menemukan sendiri lokasi yang dibutuhkan di dalam TikTok, sehingga tetap berfungsi setelah
+> TikTok diperbarui. Jika setelah pembaruan TikTok ada yang berhenti bekerja, lihat
+> «Status fitur» di pengaturan modul lalu tulis ke
 > [issues](https://github.com/hik0w/TiktokPatchXposed/issues).
 
-LSPosed-модуль для TikTok. Убирает рекламу, даёт скачивать что угодно в нужном качестве,
-включает функции, которые TikTok открывает не всем, и добавляет много мелочей: автопрокрутку
-везде, свой цвет и AMOLED-тему, скрытие элементов, флаги стран, невидимку и стикеры вместо
-огоньков. Все настройки находятся прямо внутри TikTok и выглядят как родные.
+Modul LSPosed untuk TikTok. Menghilangkan iklan, memungkinkan pengunduhan apa pun dengan
+kualitas pilihan, mengaktifkan fitur yang tidak dibuka TikTok untuk semua orang, dan menambah
+banyak hal kecil: gulir otomatis di mana saja, warna kustom dan tema AMOLED, penyembunyian
+elemen, bendera negara, mode tak terlihat, dan stiker pengganti api streak. Semua pengaturan
+berada langsung di dalam TikTok dan tampak seperti bawaan aplikasi.
 
-Текущая версия — **4.1.0**.
+Versi saat ini — **4.1.0**.
 
-### Тестовые функции 🧪
+### Fitur uji coba 🧪
 
-Функции с пометкой 🧪 сделаны и включаются, но проверены не до конца. Они могут не сработать
-или работать не так, как описано. По умолчанию все выключены.
+Fitur bertanda 🧪 sudah dibuat dan bisa dinyalakan, tetapi belum teruji sepenuhnya. Fitur
+tersebut bisa saja tidak berfungsi atau bekerja tidak sesuai deskripsi. Semuanya mati secara
+bawaan.
 
-- **Без обязательного входа** — работу без аккаунта TikTok пока не проверяли на реальном устройстве.
-- **Невидимка** (просмотры историй, профилей и видео) — проверено, что TikTok не отправляет
-  отметки о просмотре, но как это выглядит у других людей, пока не подтверждено.
-- **Блокировать местоположение, скрыть VPN, случайный ID устройства** — модуль подменяет ответы
-  Android для TikTok, но проверить все пути, которыми TikTok может это узнать, нельзя.
+- **Tanpa wajib masuk** — penggunaan tanpa akun TikTok belum diuji di perangkat nyata.
+- **Mode tak terlihat** (tontonan story, profil, dan video) — sudah terverifikasi bahwa TikTok
+  tidak mengirim tanda tontonan, tetapi tampilannya di sisi orang lain belum terkonfirmasi.
+- **Blokir lokasi, sembunyikan VPN, ID perangkat acak** — modul memalsukan jawaban Android
+  untuk TikTok, tetapi tidak semua cara TikTok mengetahuinya bisa diperiksa.
 
-Если тестовая функция у вас работает или не работает — напишите в issues, это очень помогает.
+Jika fitur uji coba berfungsi atau tidak berfungsi di perangkat Anda — tulis ke issues, itu
+sangat membantu.
 
-## Как выглядит
-
-<p align="center">
-  <img src="docs/media/main.png" width="250" alt="Главный экран настроек модуля">
-  <img src="docs/media/status.png" width="250" alt="Состояние функций">
-  <img src="docs/media/interface.png" width="250" alt="Раздел «Интерфейс»">
-</p>
-<p align="center"><sub>Настройки внутри TikTok · состояние функций в вашей версии · раздел «Интерфейс»</sub></p>
+## Tampilan
 
 <p align="center">
-  <img src="docs/media/hide.png" width="250" alt="Скрытие элементов">
-  <img src="docs/media/color.png" width="250" alt="Свой цвет акцента">
-  <img src="docs/media/downloads.png" width="250" alt="Загрузки и ссылки">
+  <img src="docs/media/main.png" width="250" alt="Layar utama pengaturan modul">
+  <img src="docs/media/status.png" width="250" alt="Status fitur">
+  <img src="docs/media/interface.png" width="250" alt="Bagian «Antarmuka»">
 </p>
-<p align="center"><sub>Скрытие элементов · свой цвет акцента · загрузки и ссылки</sub></p>
+<p align="center"><sub>Pengaturan di dalam TikTok · status fitur di versi Anda · bagian «Antarmuka»</sub></p>
 
-## Установка
+<p align="center">
+  <img src="docs/media/hide.png" width="250" alt="Penyembunyian elemen">
+  <img src="docs/media/color.png" width="250" alt="Warna aksen kustom">
+  <img src="docs/media/downloads.png" width="250" alt="Unduhan dan tautan">
+</p>
+<p align="center"><sub>Penyembunyian elemen · warna aksen kustom · unduhan dan tautan</sub></p>
 
-**Что нужно:** Android 8.1 или новее, root и [LSPosed](https://github.com/JingMatrix/LSPosed)
-(современный API libxposed 101–102 или старый LSPosed 1.9.x), TikTok из Google Play
-(`com.zhiliaoapp.musically`; `com.ss.android.ugc.trill` тоже поддерживается, но не проверялся).
+## Pemasangan
 
-1. Скачайте APK из последнего [релиза](https://github.com/hik0w/TiktokPatchXposed/releases/latest) и установите его.
-2. В LSPosed включите модуль и отметьте TikTok в его списке приложений.
-3. Принудительно остановите TikTok (Настройки Android → Приложения → TikTok → Остановить) и откройте снова.
-4. Откройте настройки модуля (см. ниже) — сверху будет «Модуль работает».
+**Syarat:** Android 8.1 atau lebih baru, root, dan [LSPosed](https://github.com/JingMatrix/LSPosed)
+(API libxposed modern 101–102 atau LSPosed lawas 1.9.x), TikTok dari Google Play
+(`com.zhiliaoapp.musically`; `com.ss.android.ugc.trill` juga didukung tetapi belum diuji).
 
-### Где настройки
+1. Unduh APK dari [rilis](https://github.com/hik0w/TiktokPatchXposed/releases/latest) terbaru lalu pasang.
+2. Di LSPosed, aktifkan modul dan centang TikTok di daftar aplikasinya.
+3. Hentikan paksa TikTok (Pengaturan Android → Aplikasi → TikTok → Hentikan) lalu buka kembali.
+4. Buka pengaturan modul (lihat di bawah) — di bagian atas akan tertulis «Modul berjalan».
 
-TikTok → Профиль → ☰ → Настройки и конфиденциальность → **TiktokPatchXposed** (самая первая строка).
+### Letak pengaturan
 
-Отдельного приложения у модуля нет: кнопка настроек в LSPosed открывает тот же экран внутри
-TikTok. Экран повторяет оформление TikTok, подстраивается под его тему и язык. Переведено на
-русский, английский, украинский, немецкий, испанский, португальский, французский, итальянский,
-польский, турецкий и индонезийский; для белорусского и казахского используется русский, для
-остальных языков — английский.
+TikTok → Profil → ☰ → Pengaturan dan privasi → **TiktokPatchXposed** (baris paling atas).
 
-Некоторые настройки применяются только после перезапуска TikTok (регион, цвет акцента,
-AMOLED-тема, случайный ID и серверные эксперименты) — тогда внизу экрана появится кнопка
-«Перезапустить».
+Modul tidak punya aplikasi tersendiri: tombol pengaturan di LSPosed membuka layar yang sama di
+dalam TikTok. Layar tersebut meniru tampilan TikTok serta mengikuti tema dan bahasanya.
+Diterjemahkan ke bahasa Rusia, Inggris, Ukraina, Jerman, Spanyol, Portugis, Prancis, Italia,
+Polandia, Turki, dan Indonesia; untuk bahasa Belarusia dan Kazakh digunakan bahasa Rusia,
+untuk bahasa lainnya digunakan bahasa Inggris.
 
-### Обновление
+Sebagian pengaturan baru berlaku setelah TikTok dimulai ulang (wilayah, warna aksen, tema
+AMOLED, ID acak, dan eksperimen server) — saat itu tombol «Mulai ulang» akan muncul di
+bagian bawah layar.
 
-Новый APK ставится поверх старого, настройки сохраняются. После установки перезапустите TikTok.
-Что нового — в описании каждого [релиза](https://github.com/hik0w/TiktokPatchXposed/releases).
-Настройки можно сохранить и перенести: *Состояние функций → Экспорт / Импорт настроек*.
+### Pembaruan
 
-### Если что-то не работает
+APK baru dipasang menimpa yang lama, pengaturan tetap tersimpan. Setelah pemasangan, mulai
+ulang TikTok. Daftar perubahan ada di deskripsi tiap
+[rilis](https://github.com/hik0w/TiktokPatchXposed/releases). Pengaturan bisa disimpan dan
+dipindahkan: *Status fitur → Ekspor / Impor pengaturan*.
 
-- **Модуля нет в настройках TikTok** — проверьте, что модуль включён в LSPosed и TikTok отмечен
-  в его списке, затем принудительно остановите TikTok.
-- **Функция не работает после обновления TikTok** — откройте «Состояние функций» (карточка
-  «Модуль работает» сверху). Если там написано «Не нашлось в этой версии TikTok», модуль эту
-  функцию пропускает. Напишите в issues с версией TikTok.
-- **Настройка не применилась** — если внизу есть кнопка «Перезапустить», нажмите её.
-- **TikTok показывает «Восстановите работу приложения»** — это защитный режим TikTok после
-  вылетов. Нажимайте **«Отмена»**, а не «Восстановить»: восстановление сбрасывает данные TikTok.
-- **Что-то другое** — откройте [issue](https://github.com/hik0w/TiktokPatchXposed/issues): версия
-  TikTok, версия модуля, скриншот «Состояния функций» и, если можно, лог LSPosed.
+### Jika ada yang tidak berfungsi
 
-## Функции
+- **Modul tidak ada di pengaturan TikTok** — pastikan modul aktif di LSPosed dan TikTok
+  dicentang di daftarnya, lalu hentikan paksa TikTok.
+- **Fitur tidak berfungsi setelah TikTok diperbarui** — buka «Status fitur» (kartu
+  «Modul berjalan» di atas). Jika tertulis «Tidak ditemukan di versi TikTok ini», modul
+  melewati fitur tersebut. Tulis ke issues beserta versi TikTok Anda.
+- **Pengaturan tidak diterapkan** — jika ada tombol «Mulai ulang» di bawah, tekan tombol itu.
+- **TikTok menampilkan «Pulihkan aplikasi»** — itu mode perlindungan TikTok setelah aplikasi
+  macet. Tekan **«Batal»**, bukan «Pulihkan»: pemulihan akan menghapus data TikTok.
+- **Hal lain** — buka [issue](https://github.com/hik0w/TiktokPatchXposed/issues): versi
+  TikTok, versi modul, tangkapan layar «Status fitur», dan jika memungkinkan, log LSPosed.
 
-### Лента
+## Fitur
 
-| Функция | Как работает |
+### Beranda
+
+| Fitur | Cara kerja |
 | --- | --- |
-| Без рекламы | Убирает рекламу из ленты, рекламную заставку при запуске, вставки внутри видео и рекламу в других списках роликов |
-| Скрыть платное и товары | Платный контент, ролики с товарами из магазина и реклама в поиске |
-| Скрыть ролики с ИИ | Видео с пометкой «Создано ИИ» от автора или TikTok |
-| Свой фильтр | Скрывает рекомендации по словам и хэштегам, авторам, минимуму лайков и просмотров |
-| Скрыть LIVE | Трансляции в ленте и кнопка LIVE в левом верхнем углу |
-| Скрыть «Вы можете знать» | Ролики, которые TikTok подбирает по вашим контактам |
-| Полоса перемотки везде | Включая короткие видео |
+| Tanpa iklan | Menghilangkan iklan dari beranda, layar pembuka saat aplikasi dibuka, sisipan di dalam video, dan iklan di daftar video lainnya |
+| Sembunyikan konten berbayar dan produk | Konten berbayar, video berisi produk toko, dan iklan di pencarian |
+| Sembunyikan video AI | Video bertanda «Dibuat dengan AI» dari pembuat maupun TikTok |
+| Filter kustom | Menyembunyikan rekomendasi berdasarkan kata dan tagar, pembuat, jumlah suka minimum, dan jumlah tontonan |
+| Sembunyikan LIVE | Siaran langsung di beranda dan tombol LIVE di kiri atas |
+| Sembunyikan «Orang yang mungkin Anda kenal» | Video yang dipilih TikTok berdasarkan kontak Anda |
+| Bilah gulir di mana saja | Termasuk video pendek |
 
-### Просмотр
+### Menonton
 
-| Функция | Как работает |
+| Fitur | Cara kerja |
 | --- | --- |
-| Автопрокрутка везде | Когда видео заканчивается, открывается следующее: в профилях, поиске, подписках и чатах. Фото-посты листаются по длине музыки, примерно 3 секунды на фото. Переключатель есть и в меню долгого нажатия на видео. В «Рекомендациях» работает родная автопрокрутка TikTok |
-| Свои скорости | Любые скорости от 0.25 до 3 в меню скорости TikTok |
-| Запоминать скорость | Выбранная скорость остаётся для следующих видео |
-| Не сбрасывать «Очистить экран» | Чистый экран остаётся при пролистывании |
-| Продолжать с того же места | Видео, к которому вы вернулись, продолжается, а не начинается заново |
+| Gulir otomatis di mana saja | Saat video selesai, video berikutnya terbuka: di profil, pencarian, langganan, dan chat. Postingan foto berganti mengikuti panjang musik, sekitar 3 detik per foto. Sakelarnya juga ada di menu tekan lama pada video. Di «Rekomendasi» memakai gulir otomatis bawaan TikTok |
+| Kecepatan kustom | Kecepatan apa pun dari 0,25 hingga 3 di menu kecepatan TikTok |
+| Ingat kecepatan | Kecepatan yang dipilih tetap berlaku untuk video berikutnya |
+| Jangan atur ulang «Bersihkan layar» | Layar bersih tetap bertahan saat bergeser |
+| Lanjutkan dari posisi terakhir | Video yang Anda buka kembali dilanjutkan, bukan diulang dari awal |
 
-### Интерфейс
+### Antarmuka
 
-| Функция | Как работает |
+| Fitur | Cara kerja |
 | --- | --- |
-| Скрытие элементов | Кнопки справа, диск музыки, автор и подпись, кнопка TikTok Tako (ИИ-помощник). Модуль прячет сами компоненты TikTok, поэтому каждый переключатель убирает только своё и сразу возвращает при выключении. Двойное касание по-прежнему ставит лайк |
-| Прозрачность интерфейса | Кнопки, автор и подпись поверх видео становятся полупрозрачными |
-| Защита от выгорания | Для OLED: кнопки чуть смещаются раз в минуту и, если включено «Затемнять кнопки», тускнеют, пока вы не касаетесь экрана |
-| Свой цвет акцента | Заменяет красный TikTok: кнопки «Подписаться», «+» под аватаром, значки, счётчики непрочитанного, лайкнутые комментарии. 8 готовых цветов или свой HEX |
-| AMOLED-тема | Чисто чёрный фон вместо тёмно-серого в тёмной теме TikTok |
-| Скрыть истории во «Входящих» | Ряд историй над чатами |
-| 🧪 Без обязательного входа | Без аккаунта TikTok не закрывает приложение окном входа |
+| Penyembunyian elemen | Tombol di kanan, piringan musik, pembuat dan keterangan, tombol TikTok Tako (asisten AI). Modul menyembunyikan komponen TikTok itu sendiri, sehingga tiap sakelar hanya menghilangkan bagiannya dan langsung mengembalikannya saat dimatikan. Ketuk dua kali tetap memberi suka |
+| Transparansi antarmuka | Tombol, pembuat, dan keterangan di atas video menjadi semi-transparan |
+| Anti burn-in | Untuk OLED: tombol bergeser sedikit tiap menit dan, jika «Redupkan tombol» dinyalakan, meredup selama layar tidak disentuh |
+| Warna aksen kustom | Mengganti warna merah TikTok: tombol «Ikuti», «+» di bawah avatar, ikon, penghitung belum dibaca, komentar yang disukai. 8 warna siap pakai atau HEX sendiri |
+| Tema AMOLED | Latar hitam pekat sebagai pengganti abu-abu gelap pada tema gelap TikTok |
+| Sembunyikan story di «Kotak Masuk» | Deretan story di atas chat |
+| 🧪 Tanpa wajib masuk | Tanpa akun TikTok, aplikasi tidak ditutup oleh jendela masuk |
 
-### Комментарии и профиль
+### Komentar dan profil
 
-| Функция | Как работает |
+| Fitur | Cara kerja |
 | --- | --- |
-| Автоперевод комментариев | Комментарии на других языках переводятся встроенным переводчиком TikTok. Можно указать языки, которые не переводить |
-| Страна автора | Флаг рядом с датой видео и рядом с ником в профиле (см. примечание ниже) |
-| Копировать только текст | «Копировать» в комментарии копирует текст без имени автора |
-| Ссылки в браузере | Ссылки из профилей и историй открываются в вашем браузере, а не внутри TikTok |
-| Репосты с комментарием, новый профиль | Серверные эксперименты TikTok, модуль включает их у себя |
-| Скрытые функции TikTok | Ускорение по удержанию, комментарии в избранное, аудио- и фотокомментарии, фоновое воспроизведение и прочее |
+| Terjemahan komentar otomatis | Komentar berbahasa lain diterjemahkan memakai penerjemah bawaan TikTok. Bahasa yang tidak diterjemahkan bisa ditentukan |
+| Negara pembuat | Bendera di samping tanggal video dan di samping nama di profil (lihat catatan di bawah) |
+| Salin teks saja | «Salin» pada komentar hanya menyalin teks tanpa nama pembuat |
+| Tautan di peramban | Tautan dari profil dan story dibuka di peramban Anda, bukan di dalam TikTok |
+| Repost berkomentar, profil baru | Eksperimen server TikTok, modul mengaktifkannya secara lokal |
+| Fitur tersembunyi TikTok | Percepatan dengan tahan, komentar favorit, komentar audio dan foto, pemutaran latar, dan lainnya |
 
-> **Флаг — не место жительства.** Модуль показывает регион, который TikTok хранит у аккаунта
-> автора (если его нет — регион видео). TikTok присваивает его сам, обычно при регистрации, по
-> SIM-карте, IP-адресу и языку устройства. Поэтому флаг не обязательно совпадает с тем, где
-> человек живёт сейчас: он мог переехать, пользоваться VPN или подменой региона, или
-> зарегистрироваться в другой стране.
+> **Bendera bukan tempat tinggal.** Modul menampilkan wilayah yang disimpan TikTok pada akun
+> pembuat (jika tidak ada — wilayah video). TikTok menentukannya sendiri, biasanya saat
+> pendaftaran, berdasarkan kartu SIM, alamat IP, dan bahasa perangkat. Karena itu bendera
+> belum tentu sama dengan tempat orang tersebut tinggal saat ini: ia bisa saja pindah,
+> memakai VPN atau pemalsu wilayah, atau mendaftar di negara lain.
 
-### Загрузки и ссылки
+### Unduhan dan tautan
 
-| Функция | Как работает |
+| Fitur | Cara kerja |
 | --- | --- |
-| Без водяного знака | Скачивание видео без водяного знака |
-| Скачивание любого видео | Даже если автор запретил скачивание |
-| Выбор качества | «Скачать» открывает шторку: качества с размером файла, «Только звук» и обычное сохранение TikTok |
-| Все фото из карусели | В фото-постах: все фото сразу в полном размере без водяного знака или выбор отдельных фото |
-| Стикеры и фото из комментариев | Долгое нажатие на комментарий → «Скачать стикер» (и GIF) или «Скачать фото» |
-| Скриншоты везде | Скриншоты и запись экрана работают и там, где TikTok их запрещает, в том числе в диалогах |
-| Чистые ссылки | Короткая ссылка `vt.tiktok.com/…` (по ней TikTok знает, кто поделился) через секунду после копирования заменяется обычной ссылкой на видео; из длинных ссылок убираются `_r`, `_t`, `u_code`, `share_link_id` и другие метки |
+| Tanpa tanda air | Mengunduh video tanpa tanda air |
+| Unduh video apa pun | Bahkan jika pembuat melarang pengunduhan |
+| Pilih kualitas | «Unduh» membuka panel: pilihan kualitas beserta ukuran berkas, «Audio saja», dan penyimpanan biasa TikTok |
+| Semua foto dari korsel | Pada postingan foto: semua foto sekaligus dalam ukuran penuh tanpa tanda air, atau pilih foto tertentu |
+| Stiker dan foto dari komentar | Tekan lama komentar → «Unduh stiker» (dan GIF) atau «Unduh foto» |
+| Tangkapan layar di mana saja | Tangkapan layar dan perekaman layar berfungsi juga di tempat yang dilarang TikTok, termasuk di percakapan |
+| Tautan bersih | Tautan pendek `vt.tiktok.com/…` (melaluinya TikTok tahu siapa yang membagikan) sedetik setelah disalin diganti tautan video biasa; dari tautan panjang dibuang `_r`, `_t`, `u_code`, `share_link_id`, dan penanda lainnya |
 
-### Регион
+### Wilayah
 
-| Функция | Как работает |
+| Fitur | Cara kerja |
 | --- | --- |
-| Страна | Подмена страны SIM-карты и оператора, около 190 стран. По умолчанию Германия, можно выбрать другую или выключить. Название часового пояса тоже меняется на пояс этой страны с тем же временем, так что часы остаются верными |
-| Рекомендации на моём языке | Рекомендации на языке, выбранном в TikTok. Если выключить, TikTok подбирает видео под выбранную страну |
-| Только свежие видео | Скрывает рекомендации старше выбранного срока (от недели до 2 лет или свой) |
+| Negara | Pemalsuan negara kartu SIM dan operator, sekitar 190 negara. Bawaan Jerman, bisa diganti atau dimatikan. Nama zona waktu juga berubah mengikuti zona waktu negara tersebut dengan waktu yang sama, sehingga jam tetap benar |
+| Rekomendasi dalam bahasa saya | Rekomendasi dalam bahasa yang dipilih di TikTok. Jika dimatikan, TikTok memilih video sesuai negara yang dipilih |
+| Hanya video terbaru | Menyembunyikan rekomendasi yang lebih lama dari jangka waktu pilihan (dari seminggu hingga 2 tahun, atau kustom) |
 
-> **Регион не гарантирован.** Модуль меняет только то, что TikTok узнаёт об устройстве: страну
-> SIM-карты, оператора и часовой пояс. Регион самого аккаунта (его TikTok запоминает при
-> регистрации), IP-адрес и другие сигналы модуль не меняет. Поэтому рекомендации, доступные
-> функции и регион аккаунта не обязательно будут точно соответствовать выбранной стране.
+> **Wilayah tidak dijamin.** Modul hanya mengubah yang diketahui TikTok tentang perangkat:
+> negara kartu SIM, operator, dan zona waktu. Wilayah akun itu sendiri (yang diingat TikTok
+> saat pendaftaran), alamat IP, dan sinyal lainnya tidak diubah modul. Karena itu rekomendasi,
+> fitur yang tersedia, dan wilayah akun belum tentu persis sesuai negara yang dipilih.
 
-### Невидимка
+### Mode tak terlihat
 
-Всё по умолчанию выключено, все функции тестовые (см. [Тестовые функции](#тестовые-функции-)).
+Semuanya mati secara bawaan, semua fitur bersifat uji coba (lihat [Fitur uji coba](#fitur-uji-coba-)).
 
-| Функция | Как работает |
+| Fitur | Cara kerja |
 | --- | --- |
-| 🧪 Скрыть просмотр историй | Автор не увидит вас среди зрителей истории |
-| 🧪 Скрыть просмотр профилей | Можно включить «Просмотры профиля» в TikTok и видеть гостей, не появляясь у других |
-| 🧪 Скрыть просмотр видео у подписок | При включённой истории просмотров те, на кого вы подписаны, не увидят, какие их видео вы смотрели |
-| 🧪 Блокировать местоположение | TikTok видит геолокацию выключенной и не получает координаты ни от GPS, ни от сети |
-| 🧪 Скрыть VPN | TikTok не видит, что соединение идёт через VPN |
-| 🧪 Случайный ID устройства | TikTok получает случайный Android ID вместо настоящего. Применяется после перезапуска; TikTok может попросить войти заново |
+| 🧪 Sembunyikan tontonan story | Pembuat tidak akan melihat Anda di antara penonton story |
+| 🧪 Sembunyikan tontonan profil | Anda bisa menyalakan «Tontonan profil» di TikTok dan melihat pengunjung tanpa terlihat oleh orang lain |
+| 🧪 Sembunyikan tontonan video dari langganan | Dengan riwayat tontonan menyala, orang yang Anda ikuti tidak melihat video mereka mana yang Anda tonton |
+| 🧪 Blokir lokasi | TikTok melihat geolokasi dalam keadaan mati dan tidak menerima koordinat baik dari GPS maupun jaringan |
+| 🧪 Sembunyikan VPN | TikTok tidak melihat bahwa koneksi berjalan melalui VPN |
+| 🧪 ID perangkat acak | TikTok menerima Android ID acak sebagai pengganti yang asli. Berlaku setelah mulai ulang; TikTok bisa meminta masuk kembali |
 
-### Огоньки
+### Streak
 
-| Функция | Как работает |
+| Fitur | Cara kerja |
 | --- | --- |
-| Автоогоньки | Продлевают уже существующие огоньки, подробнее ниже |
-| Что отправлять | Огонёк или стикер из вашего избранного. Если стикер убрали из избранного, уйдёт огонёк |
+| Streak otomatis | Memperpanjang streak yang sudah ada, selengkapnya di bawah |
+| Yang dikirim | Api streak atau stiker dari favorit Anda. Jika stiker dihapus dari favorit, yang terkirim adalah api |
 
-### Экран настроек
+### Layar pengaturan
 
-Поиск по всем настройкам, «Состояние функций» (что нашлось в вашей версии TikTok), экспорт и
-импорт настроек одной строкой.
+Pencarian di semua pengaturan, «Status fitur» (apa yang ditemukan di versi TikTok Anda),
+ekspor dan impor pengaturan dalam satu baris.
 
-## Автоогоньки
+## Streak otomatis
 
-Включаются вручную. Модуль продлевает только уже существующие огоньки в личных чатах на двоих
-и только когда огонёк вот-вот сгорит. Отправка идёт обычным взаимодействием TikTok `spark_v1`
-(или стикером, если он выбран), а не текстовым сообщением. Работает, пока TikTok открыт: никаких
-будильников и фоновых сервисов. Каждая отправка сначала записывается, поэтому один и тот же
-огонёк не продлевается дважды за день. Между чатами модуль делает паузу в несколько секунд, как
-если бы вы проходили по ним вручную. Если TikTok не принял огонёк, придёт уведомление:
-проверьте этот чат сами.
+Dinyalakan manual. Modul hanya memperpanjang streak yang sudah ada di chat pribadi berdua
+dan hanya saat streak hampir hangus. Pengiriman memakai interaksi normal TikTok `spark_v1`
+(atau stiker jika dipilih), bukan pesan teks. Berfungsi selama TikTok terbuka: tanpa alarm
+dan tanpa layanan latar. Setiap pengiriman dicatat dulu, sehingga streak yang sama tidak
+diperpanjang dua kali dalam sehari. Antar chat modul memberi jeda beberapa detik, seolah
+Anda berpindah manual. Jika TikTok menolak streak, akan muncul notifikasi: periksa chat
+tersebut sendiri.
 
-## Совместимость
+## Kompatibilitas
 
-Раньше после каждого обновления TikTok модуль приходилось подгонять под новые имена классов.
-Теперь он цепляется только за читаемые имена классов и методов TikTok, а запутанные места
-находит сам при первом запуске новой версии (по строкам и сигнатурам) — на это уходят доли
-секунды, результат запоминается. Поэтому новые версии TikTok, скорее всего, будут работать без
-обновления модуля. Гарантировать это нельзя: если какую-то функцию найти не удалось, модуль её
-просто пропустит и покажет это в «Состоянии функций».
+Dulu setiap pembaruan TikTok membuat modul harus disesuaikan dengan nama kelas yang baru.
+Kini modul hanya mengaitkan nama kelas dan metode TikTok yang terbaca, sedangkan bagian
+yang dikaburkan ditemukan sendiri saat pertama kali versi baru dijalankan (berdasarkan
+string dan signature) — hanya butuh sepersekian detik dan hasilnya diingat. Karena itu
+versi TikTok yang baru kemungkinan besar langsung berfungsi tanpa pembaruan modul. Hal ini
+tidak bisa dijamin: jika suatu fitur tidak ditemukan, modul melewatinya begitu saja dan
+menampilkannya di «Status fitur».
 
-Модуль работает через современный API LSPosed (libxposed 101–102), поэтому в новых версиях
-LSPosed нет пометки «legacy». Старые LSPosed 1.9.x тоже поддерживаются: для них в APK оставлен
-прежний способ загрузки.
+Modul bekerja melalui API LSPosed modern (libxposed 101–102), sehingga di versi LSPosed
+baru tidak ada label «legacy». LSPosed lama 1.9.x juga didukung: cara pemuatan lama
+disertakan di APK.
 
-## Ограничения
+## Batasan
 
-- Иконку TikTok на рабочем столе поменять нельзя: модуль не может менять манифест TikTok.
-- Часть оформления TikTok рисует сама из картинок и Jetpack Compose — некоторые мелкие элементы
-  остаются красными даже со своим цветом акцента.
-- Регион меняет то, что TikTok узнаёт о SIM-карте, операторе и часовом поясе, но не регион
-  аккаунта и не IP-адрес, так что результат не гарантирован.
-- Тестовые функции 🧪 проверены не полностью (см. выше).
+- Ikon TikTok di layar utama tidak bisa diganti: modul tidak bisa mengubah manifes TikTok.
+- Sebagian tampilan TikTok digambar sendiri dari gambar dan Jetpack Compose — beberapa
+  elemen kecil tetap merah walau warna aksen sudah diganti.
+- Wilayah mengubah yang diketahui TikTok tentang kartu SIM, operator, dan zona waktu, tetapi
+  bukan wilayah akun dan bukan alamat IP, sehingga hasilnya tidak dijamin.
+- Fitur uji coba 🧪 belum teruji sepenuhnya (lihat di atas).
 
-## Сборка
+## Membangun
 
-Нужны Java 17 и Android SDK 36.
+Butuh Java 17 dan Android SDK 36.
 
-Весь проект лежит в папке `source/`:
+Seluruh proyek ada di folder `source/`:
 
 ```shell
 cd source
 ./gradlew testDebugUnitTest assembleRelease
 ```
 
-APK появится в `source/app/build/outputs/apk/release/`.
+APK akan muncul di `source/app/build/outputs/apk/release/`.
 
-### Структура проекта
+### Struktur proyek
 
 ```text
-source/                  Gradle-проект модуля
-docs/media/              скриншоты для README
-.github/workflows/       сборка и тесты на GitHub Actions
+source/                  proyek Gradle modul
+docs/media/              tangkapan layar untuk README
+.github/workflows/       build dan pengujian di GitHub Actions
 
 source/app/src/main/java/com/golda/patchertiktok/
-  ModuleMain, MainHook   точки входа для нового и старого LSPosed
-  Module                 запуск всех функций, каждая изолирована и не роняет остальные
-  Hooks, Reflect         обёртка над API LSPosed и рефлексия
-  Discovery, DexFinder   поиск запутанных классов TikTok по строкам и сигнатурам
-  Prefs, I18n            настройки и переводы на 11 языков
-  ModSettingsActivity    экран настроек внутри TikTok
-  FeedFilter, ContentFilter, ...   лента и фильтры
-  AutoScroll, PlaybackSpeed, ...   просмотр
-  Overlay, AccentColor, ...        интерфейс
-  DownloadsPlus, CommentMedia, ... загрузки
-  RegionSpoof, Ghost, Privacy      регион и невидимка
-  AutoStreakManager, StreakSticker огоньки
+  ModuleMain, MainHook   titik masuk untuk LSPosed baru dan lama
+  Module                 menjalankan semua fitur, masing-masing terisolasi dan tidak menjatuhkan yang lain
+  Hooks, Reflect         pembungkus API LSPosed dan refleksi
+  Discovery, DexFinder   pencarian kelas TikTok yang dikaburkan berdasarkan string dan signature
+  Prefs, I18n            pengaturan dan terjemahan ke 11 bahasa
+  ModSettingsActivity    layar pengaturan di dalam TikTok
+  FeedFilter, ContentFilter, ...   beranda dan filter
+  AutoScroll, PlaybackSpeed, ...   menonton
+  Overlay, AccentColor, ...        antarmuka
+  DownloadsPlus, CommentMedia, ... unduhan
+  RegionSpoof, Ghost, Privacy      wilayah dan mode tak terlihat
+  AutoStreakManager, StreakSticker streak
 ```
 
-## Предупреждение
+## Peringatan
 
-Модификация клиента и автоматические действия могут привести к ограничениям аккаунта.
-Используйте на свой страх и риск. Это неофициальный проект, он не связан с TikTok и ByteDance.
+Modifikasi klien dan tindakan otomatis dapat berujung pada pembatasan akun. Gunakan dengan
+risiko sendiri. Ini proyek tidak resmi, tidak terafiliasi dengan TikTok maupun ByteDance.
 
-## Лицензия
+## Lisensi
 
-Лицензия **MIT**, см. [LICENSE](LICENSE).
+Lisensi **MIT**, lihat [LICENSE](LICENSE).
