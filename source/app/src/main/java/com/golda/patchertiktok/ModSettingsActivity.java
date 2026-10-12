@@ -306,6 +306,7 @@ public final class ModSettingsActivity extends Activity {
             new Setting(Category.SOCIAL, S.COMMENT_REPOSTS, S.COMMENT_REPOSTS_DESC, Prefs.COMMENT_REPOSTS),
             new Setting(Category.SOCIAL, S.FAKE_VERIFIED, S.FAKE_VERIFIED_DESC, Prefs.FAKE_VERIFIED),
             new Setting(Category.SOCIAL, S.FAKE_LIVE, S.FAKE_LIVE_DESC, Prefs.FAKE_LIVE),
+            new Setting(Category.SOCIAL, S.BIO_LIMIT, S.BIO_LIMIT_DESC, Prefs.BIO_LIMIT),
             new Setting(Category.SOCIAL, S.NEW_PROFILE, S.NEW_PROFILE_DESC, Prefs.NEW_PROFILE),
             new Setting(Category.SOCIAL, S.EXTRA_FEATURES, S.EXTRA_FEATURES_DESC, Prefs.EXTRA_FEATURES),
             new Setting(Category.SOCIAL, S.COPY_COMMENT, S.COPY_COMMENT_DESC, Prefs.COPY_COMMENT_TEXT),
@@ -438,7 +439,7 @@ public final class ModSettingsActivity extends Activity {
             {"author region", "AUTHOR_REGION"}, {"comment translation", "AUTO_TRANSLATE"}, {"downloads", "NO_WATERMARK"}, {"clean links", "CLEAN_LINKS"},
             {"invisible mode", "SECTION_GHOST"}, {"region", "REGION"}, {"recommendation", "REGION_LANGUAGE"},
             {"A/B overrides", "EXTRA_FEATURES"}, {"auto streaks", "AUTO_STREAK"},
-            {"device model", "DEVICE_SPOOF"}};
+            {"device model", "DEVICE_SPOOF"}, {"longer bio", "BIO_LIMIT"}};
 
     private View statusPage() {
         Page page = new Page(I18n.get(S.STATUS_TITLE), true);

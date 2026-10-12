@@ -99,6 +99,7 @@ final class Module {
         run("auto streaks", () -> AutoStreakManager.install(app, loader));
         run("fake verified", () -> FakeVerified.install(loader));
         run("fake live ring", () -> FakeLiveRing.install(loader));
+        run("bio limit", BioLimit::install);
         run("watch history", () -> WatchHistory.install(app, loader));
         run("live stream url", () -> LiveStreamUrl.install(app, loader));
         Discovery.release();

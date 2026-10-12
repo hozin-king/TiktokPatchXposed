@@ -87,6 +87,8 @@ final class Prefs {
     static final String DEVICE_SPOOF = "device_spoof";
     /** Selected flagship profile id, e.g. "s24ultra"; empty for none. */
     static final String DEVICE_SPOOF_MODEL = "device_spoof_model";
+    /** Raise the bio character limit from 160 to 2000 (client-side only). */
+    static final String BIO_LIMIT = "bio_limit";
     /** Force maximum upload quality via A/B experiment overrides. */
     static final String UPLOAD_HD = "upload_hd";
     /** Raise offline-video limits and quality via A/B experiment overrides. */
@@ -171,6 +173,7 @@ final class Prefs {
         DEFAULTS.put(FAKE_VERIFIED, false);
         DEFAULTS.put(FAKE_LIVE, false);
         DEFAULTS.put(DEVICE_SPOOF, false);
+        DEFAULTS.put(BIO_LIMIT, false);
         DEFAULTS.put(UPLOAD_HD, false);
         DEFAULTS.put(OFFLINE_PLUS, false);
         DEFAULTS.put(WATCH_HISTORY, false);
