@@ -637,7 +637,16 @@ public final class ModSettingsActivity extends Activity {
         }
         if (category == Category.PLAYBACK) {
             TextView value = navigation(card, I18n.get(S.SPEEDS), speedsLabel(), view -> push(speedsPage(), true));
-            page.root.setTag((Runnable) () -> value.setText(speedsLabel()));
+            // Chain with the history-row sync above instead of overwriting its tag:
+            // otherwise toggling WATCH_HISTORY never updates the history row visibility.
+            Object previous = page.root.getTag();
+            Runnable prev = previous instanceof Runnable ? (Runnable) previous : null;
+            Runnable sync = () -> {
+                if (prev != null) prev.run();
+                value.setText(speedsLabel());
+            };
+            sync.run();
+            page.root.setTag(sync);
         }
         if (category == Category.FEED) {
             View setup = (View) navigation(card, I18n.get(S.FILTER_SETUP), null, view -> push(filterPage(), true)).getParent();

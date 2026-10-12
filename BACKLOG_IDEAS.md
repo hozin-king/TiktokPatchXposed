@@ -167,3 +167,33 @@
 ## 10. Lihat URL stream live (disetujui user 2026-10-12)
 - Saat menonton live, tampilkan/salin URL stream langsung (bukan link share vt.tiktok.com)
   agar bisa dibuka di pemutar eksternal. Catatan: URL biasanya bertanda tangan & kedaluwarsa.
+
+## 11. Fake gift live (riset 2026-10-12, status: MUNGKIN)
+- Skenario: saat menonton live orang, tombol floating memicu ANIMASI gift (mawar, paus, dsb)
+  secara lokal TANPA benar-benar mengirim gift (tanpa koin). Murni kosmetik di perangkat sendiri.
+- Hasil bedah APK 47.0.3 (androguard, semua klaim terverifikasi dari dex):
+  - Renderer: `com.bytedance.android.livesdk.gift.base.platform.business.effect.LiveGiftEffectWidget`
+    — `onGiftMessage(GiftMessage)` → `consumeMessage(...)` → resolve `AssetsModel` dari giftId
+    secara lokal → putar via `LiveGiftPlayController` (gift video engine) /
+    `com.bytedance.android.live.gift.ILiveGiftDelegatePlayerService.start(player, url, giftId)`.
+    Alternatif: `.../tray/AbsNormalGiftAnimWidget.W(GiftMessage)`.
+  - Model pesan: `com.bytedance.android.livesdk.model.message.GiftMessage` — data class polos,
+    field publik: `giftId` (long), `mGift` (Gift), `giftEffect` (GiftEffect), `fromUser`,
+    `comboCount`, dll. Bisa dikonstruksi via `<init>()` + set field.
+  - Model gift: `com.bytedance.android.livesdk.model.Gift` — `id`, `name`, `icon`, `primaryEffectId`
+    (56 field). Daftar gift TIDAK perlu di-hardcode.
+  - Daftar gift: `com.bytedance.android.livesdk.gift.base.platform.core.manager.GiftManager`
+    — `findGiftById(long)`, `getCurrentGiftPanelList()`, `getDataFromMemoryCache()`
+    (terisi saat panel gift / sinkronisasi list; dex_base/classes10.dex).
+  - Jalur animasi BEBAS network: `onGiftMessage`/`consumeMessage`/`initMonitorData` tidak
+    memanggil HTTP/API apa pun (verifikasi via xref invoke) — aset effect di-resolve dari cache lokal.
+- Strategi implementasi (tanpa menyentuh API kirim gift/pembayaran SAMA SEKALI):
+  1. Hook konstruktor `GiftManager` + `LiveGiftEffectWidget`/`AbsNormalGiftAnimWidget` untuk
+     menangkap instance aktif.
+  2. Pilihan gift dari `getCurrentGiftPanelList()` (nama + id + ikon asli).
+  3. Saat tombol floating ditekan: bangun `GiftMessage` palsu (`giftId` + `mGift` dari
+     `findGiftById` + `fromUser` = akun sendiri), panggil `widget.onGiftMessage(msg)` langsung.
+- Batasan jujur: hanya animasi lokal — streamer & penonton lain TIDAK melihat apa-apa;
+  daftar gift butuh panel gift pernah dibuka (cache); aset video effect bisa diunduh on-demand
+  dari URL asli (wajar). Perlu verifikasi runtime di HP.
+- ATURAN: JANGAN EVER memanggil alur kirim gift sungguhan (`GiftService`/`sendGift`/API payment).
