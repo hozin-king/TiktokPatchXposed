@@ -30,6 +30,33 @@
 - Pet streak & sticker streak fake.
 - Kendala: data streak (hari, flame, pet) bersifat server-side; fake hanya tampil lokal.
 
+### Hasil riset hook (2026-10-12, APK com.ss.android.ugc.trill v47.0.3)
+- **MUNGKIN** — kandidat hook VALID, terbukti dari kode modul existing
+  (`source/app/src/main/java/com/golda/patchertiktok/StreakApi.java`) yang SUDAH
+  membaca data streak asli di runtime:
+- Class: `com.ss.android.ugc.aweme.im.streak.api.StreakData`
+  (loadable saat runtime via `Class.forName(..., loader)` — class ada di dex
+  dinamis/terpisah, tidak di base.apk/split yang terekstrak statis).
+- Field angka hari: `streak` (Number/int) — dipakai modul existing via
+  `number(item, "streak")`; inilah angka 🔥 yang tampil di UI chat.
+- Field lain: `convType` (1 = one-to-one), `convId` (String),
+  `userStreak` (List, tiap item punya `uid`), `activeStart`/`activeBefore`/`endAt`
+  (long, jendela waktu streak).
+- Provider ditemukan via fingerprint log `"StreakServerDataSource triggerStreakCompare convId: "`,
+  method `List<StreakData> x(List<RecordType>)` (RecordType enum: USER, CONVERSATION).
+- **Strategi hook:** hook getter `getStreak()` (Kotlin data class) atau method list
+  provider lalu set field `streak` via reflection ke angka pilihan user.
+- **Batasan jujur:**
+  - Nilai asli datang dari server (`StreakServerDataSource`, API
+    `/tiktok/v1/im/streaks/get|info|compare`). Fake hanya mengubah TAMPILAN
+    di perangkat ini; lawan chat tetap melihat angka asli.
+  - Kalau belum ada streak asli (tidak ada record), angka fake murni kosmetik.
+  - Perlu verifikasi runtime di HP.
+- Terkait (belum diriset hook-nya): popup perayaan
+  (`StreakUnlockAnimTrigger`, `StreakMilestoneUnlockAnimationConfig`),
+  pet streak (`StreakPetData`, API `/tiktok/v1/im/streaks/pet/*`),
+  streak sticker (modul sudah punya `StreakSticker.java`).
+
 ## 3. (sudah dibahas) Upload HD maksimal via override eksperimen
 ## 4. (sudah dibahas) Centang verifikasi fake (lokal; antar-pengguna modul via daftar ID)
 

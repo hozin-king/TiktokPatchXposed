@@ -4,8 +4,10 @@ import java.lang.reflect.Method;
 
 /**
  * Fake LIVE profile ring (local only): forces {@code isLive()} on
- * {@code com.ss.android.ugc.aweme.profile.model.User} to return true, so
- * TikTok draws the LIVE ring around the avatar on this device.
+ * {@code com.ss.android.ugc.aweme.profile.model.User} to return true,
+ * but ONLY for the logged-in account (checked via {@link SelfUid}),
+ * so TikTok draws the LIVE ring around the user's own avatar on this device.
+ * Other people's avatars are never affected.
  *
  * Verified from TikTok 47.0.3 (androguard): {@code isLive()Z} bytecode is
  * {@code return roomId != 0}, and the ring renderer calls
@@ -35,7 +37,9 @@ final class FakeLiveRing {
             if (method.getReturnType() != boolean.class && method.getReturnType() != Boolean.class) continue;
             Hooks.hook(method, new Hooks.Hook() {
                 @Override protected void after(Hooks.Call param) {
-                    if (Prefs.on(Prefs.FAKE_LIVE)) param.setResult(true);
+                    if (Prefs.on(Prefs.FAKE_LIVE) && SelfUid.isSelf(param.thisObject, loader)) {
+                        param.setResult(true);
+                    }
                 }
             });
             hooks++;

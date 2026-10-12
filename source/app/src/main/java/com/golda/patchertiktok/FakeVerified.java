@@ -5,7 +5,9 @@ import java.lang.reflect.Method;
 /**
  * Fake verified badge (local only): forces the verification getters on
  * {@code com.ss.android.ugc.aweme.profile.model.User} to report a verified
- * account, so TikTok draws the blue checkmark on this device.
+ * account, but ONLY for the logged-in account (checked via {@link SelfUid}),
+ * so TikTok draws the blue checkmark on the user's own profile on this device.
+ * Other people's profiles are never affected.
  *
  * Verified from TikTok 47.0.3 (androguard): the class has no boolean
  * {@code isVerified} field; verification is the int fields
@@ -35,7 +37,9 @@ final class FakeVerified {
             if (method.getReturnType() != int.class && method.getReturnType() != Integer.class) continue;
             Hooks.hook(method, new Hooks.Hook() {
                 @Override protected void after(Hooks.Call param) {
-                    if (Prefs.on(Prefs.FAKE_VERIFIED)) param.setResult(VERIFIED);
+                    if (Prefs.on(Prefs.FAKE_VERIFIED) && SelfUid.isSelf(param.thisObject, loader)) {
+                        param.setResult(VERIFIED);
+                    }
                 }
             });
             hooks++;
