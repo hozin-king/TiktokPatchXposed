@@ -327,6 +327,7 @@ public final class ModSettingsActivity extends Activity {
             new Setting(Category.GHOST, S.BLOCK_LOCATION, S.BLOCK_LOCATION_DESC, Prefs.BLOCK_LOCATION),
             new Setting(Category.GHOST, S.HIDE_VPN, S.HIDE_VPN_DESC, Prefs.HIDE_VPN),
             new Setting(Category.GHOST, S.SPOOF_ANDROID_ID, S.SPOOF_ANDROID_ID_DESC, Prefs.SPOOF_ANDROID_ID),
+            new Setting(Category.GHOST, S.DEVICE_SPOOF, S.DEVICE_SPOOF_DESC, Prefs.DEVICE_SPOOF),
             new Setting(Category.STREAKS, S.AUTO_STREAK, S.AUTO_STREAK_DESC, Prefs.AUTO_STREAK),
             new Setting(Category.STREAKS, S.STREAK_REMINDER, S.STREAK_REMINDER_DESC, Prefs.STREAK_REMINDER),
     };
@@ -436,7 +437,8 @@ public final class ModSettingsActivity extends Activity {
             {"interface", "HIDE_INBOX_STORIES"}, {"overlay", "OVERLAY_OPACITY"}, {"accent color", "ACCENT"},
             {"author region", "AUTHOR_REGION"}, {"comment translation", "AUTO_TRANSLATE"}, {"downloads", "NO_WATERMARK"}, {"clean links", "CLEAN_LINKS"},
             {"invisible mode", "SECTION_GHOST"}, {"region", "REGION"}, {"recommendation", "REGION_LANGUAGE"},
-            {"A/B overrides", "EXTRA_FEATURES"}, {"auto streaks", "AUTO_STREAK"}};
+            {"A/B overrides", "EXTRA_FEATURES"}, {"auto streaks", "AUTO_STREAK"},
+            {"device model", "DEVICE_SPOOF"}};
 
     private View statusPage() {
         Page page = new Page(I18n.get(S.STATUS_TITLE), true);
@@ -644,6 +646,17 @@ public final class ModSettingsActivity extends Activity {
             Runnable sync = () -> {
                 setup.setVisibility(Prefs.on(Prefs.CUSTOM_FILTER) ? View.VISIBLE : View.GONE);
                 urlRow.setVisibility(Prefs.on(Prefs.LIVE_STREAM_URL) ? View.VISIBLE : View.GONE);
+            };
+            sync.run();
+            page.root.setTag(sync);
+        }
+        if (category == Category.GHOST) {
+            TextView deviceValue = navigation(card, I18n.get(S.DEVICE_SPOOF_MODEL), deviceLabel(),
+                    view -> push(devicePage(), true));
+            View deviceRow = (View) deviceValue.getParent();
+            Runnable sync = () -> {
+                deviceValue.setText(deviceLabel());
+                deviceRow.setVisibility(Prefs.on(Prefs.DEVICE_SPOOF) ? View.VISIBLE : View.GONE);
             };
             sync.run();
             page.root.setTag(sync);
@@ -1421,6 +1434,24 @@ public final class ModSettingsActivity extends Activity {
     private String regionLabel() {
         Regions.Region region = Regions.find(Prefs.region());
         return region == null ? I18n.get(S.OFF) : region.name(locale);
+    }
+
+    /** Flagship model picker for the device spoof. */
+    private View devicePage() {
+        Page page = new Page(I18n.get(S.DEVICE_SPOOF_MODEL), false);
+        LinearLayout list = page.card();
+        String selected = Prefs.text(Prefs.DEVICE_SPOOF_MODEL);
+        for (DeviceSpoof.Profile profile : DeviceSpoof.profiles()) {
+            choice(list, profile.name + " (" + profile.model + ")", profile.id.equals(selected),
+                    () -> Prefs.setText(Prefs.DEVICE_SPOOF_MODEL, profile.id));
+        }
+        page.footer(I18n.get(S.DEVICE_SPOOF_DESC));
+        return page.root;
+    }
+
+    private String deviceLabel() {
+        DeviceSpoof.Profile profile = DeviceSpoof.find(Prefs.text(Prefs.DEVICE_SPOOF_MODEL));
+        return profile == null ? I18n.get(S.OFF) : profile.name;
     }
 
     // ---- rows ------------------------------------------------------------------------------

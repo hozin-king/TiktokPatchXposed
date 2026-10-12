@@ -58,6 +58,22 @@
   streak sticker (modul sudah punya `StreakSticker.java`).
 
 ## 3. (sudah dibahas) Upload HD maksimal via override eksperimen
+
+### Hasil riset lanjutan (2026-10-12, APK com.ss.android.ugc.trill v47.0.3 — BLOCKED untuk upload)
+- **Komentar foto:** ditemukan experiment `comment_photo_quality_optimization_v2`
+  (key terverifikasi di `LX/0IQj;->invoke()`, classes9.dex) dengan class
+  `com.ss.android.ugc.aweme.comment.experiment.CommentPhotoQualityOptimizationV2`
+  + config `CommentPhotoQualityOptV2Config` (field: `enableDetailArgb8888`,
+  `enableDetailDownsample`, `enableThumbnailArgb8888`, `enableThumbnailDownsample`,
+  `detailSrLevel`, `thumbnailSrLevel`, `lowEndSrPolicy`, `midEndSrPolicy`).
+  TAPI ini eksperimen **kualitas pemrosesan/tampilan** (downsampling, color depth,
+  super-resolution saat render), BUKAN kontrol kualitas upload yang terverifikasi.
+  Tidak dibangun agar tidak jadi toggle palsu.
+- **Video upload:** tidak ditemukan experiment key sederhana; pengaturan encoder
+  berupa JSON compile config kompleks (bitrate 5-6 Mbps, crf, gop) yang berisiko
+  diubah tanpa pemahaman penuh. Toggle `UPLOAD_HD` yang ada di Prefs/I18n saat ini
+  MATI (tidak ada implementasi) — jangan aktifkan ke user sebelum ada hook valid.
+- Kesimpulan: tetap BLOCKED sampai ditemukan titik kontrol upload yang terverifikasi.
 ## 4. (sudah dibahas) Centang verifikasi fake (lokal; antar-pengguna modul via daftar ID)
 
 ### Hasil riset hook (2026-10-12, APK com.ss.android.ugc.trill v47.0.3, base.apk/classes2.dex)
@@ -110,9 +126,43 @@
   - Sinyal deteksi: field API `preRecorded`/`preRecordedBadgeText` (server bisa melabeli live sebagai
     rekaman), `livesdk_hit_risk_control` (risk control live). TikTok melarang live palsu di Community
     Guidelines — risiko pembatasan akun nyata.
-  - KESIMPULAN: secara teknis SANGAT SULIT dari modul Xposed (butuh hook native ke .so yang diunduh
-    dinamis, tanpa API Java). Risiko akun tinggi. REKOMENDASI: jangan build; kalaupun dipaksa, satu-
+  - KESIMPULAN AWAL: secara teknis SANGAT SULIT dari modul Xposed (butuh hook native ke .so yang diunduh
+    dinamis, tanpa API Java). Risiko akun tinggi. REKOMENDASI AWAL: jangan build; kalaupun dipaksa, satu-
     satunya jalur realistis adalah mode screen-capture + pemutar video fullscreen, bukan injeksi frame.
+- HASIL RISET VIRTUAL CAMERA (2026-10-12, APK com.ss.android.ugc.trill v47.0.3, via androguard 4.1.4 — MUNGKIN):
+  - Riset awal melewatkan stack capture yang sebenarnya: siaran live v47.0.3 memakai
+    `com.ss.ttlivestreamer` (livestreamer v2), BUKAN cuma `com.ss.pusher`.
+  - Kamera live = `com.ss.android.ttvecamera.TECameraCapture` (abstraksi kamera milik TikTok di atas
+    android.hardware.camera2: CameraDevice, CameraCaptureSession). TIDAK pakai CameraX.
+  - Pompa frame = `com.ss.ttlivestreamer.core.buffer.SurfaceTextureHelper` (gaya WebRTC):
+    `setOnFrameAvailableListener`, `startListening`/`stopListening`, `tryDeliverTextureFrame`,
+    `textureToYuv` — semua di level Java, bisa di-hook (dex_split/classes4.dex).
+  - TITIK INJEKSI (terverifikasi): `com.ss.ttlivestreamer.livestreamv2.capture.LiveStreamVideoCapture`,
+    method `LLJJI(Lcom/ss/ttlivestreamer/core/buffer/VideoFrame$Buffer; I I I J)I`
+    (nama obfuscate; cari via reflection berdasarkan signature: (Buffer, width, height, rotation,
+    timestampNs) -> int). Ini pintu masuk frame ke pipeline live.
+  - Buffer bisa dibuat murni di Java: `NV21Buffer(byte[], width, height, Runnable)` atau
+    `NV12Buffer(int,int,int,int,ByteBuffer,Runnable)` (konstruktor publik). Interface
+    `VideoFrame$I420Buffer` (getDataY/U/V + stride) juga bisa diimplementasi sendiri.
+    Decode file video pakai `android.media.MediaCodec` + `MediaExtractor` (keduanya direferensi di dex).
+  - Jalur audio: `com.ss.ttlivestreamer.core.capture.audio.AudioCapturer`, `AudioDeviceModule`,
+    `pushAudioFrame` — titik injeksi audio kemungkinan ada tapi BELUM dipetakan penuh
+    (audio dari file video harus ikut disiarkan).
+  - Yang BELUM terbukti (butuh verifikasi runtime): cara mendapatkan instance LiveStreamVideoCapture
+    yang aktif (kandidat: hook konstruktornya); apakah frame kamera juga masuk via LLJJI yang sama
+    (kalau ya, frame kamera harus disupresi — kandidat: `SurfaceTextureHelper.stopListening()` atau
+    `LiveStreamVideoCapture.pause()`); apakah timestamp harus realtime-monotonik.
+  - Sinyal deteksi (terverifikasi): `com.bytedance.android.livesdkapi.depend.model.live.RoomPrivateInfo.preRecorded:int`
+    dan `com.bytedance.android.livesdk.model.TopFrameSummary.preRecordedBadgeText:String`
+    (dex_base/classes13.dex) — server bisa menandai live sebagai rekaman + menampilkan badge.
+    Risiko pembatasan akun TETAP TINGGI.
+  - KESIMPULAN: MUNGKIN secara teknis — titik injeksi Java terverifikasi (tidak butuh hook native),
+    tapi butuh verifikasi runtime + pemetaan audio + penanganan supresi kamera. Risiko akun tinggi.
+- SPEK UI (permintaan user 2026-10-12, bila titik injeksi terbukti):
+  - MODE pemutaran: sekali putar lalu berhenti | loop 1x | loop tanpa batas.
+  - Playlist: pilih/tambah BEBERAPA video, diputar berurutan.
+  - Kontrol mudah diakses dari dalam aplikasi: tombol di area inbox/live + pengaturan pilih video.
+  - Saat user menekan LIVE, yang disiarkan = video pilihan (bukan kamera, bukan tangkapan layar).
 
 ## 10. Lihat URL stream live (disetujui user 2026-10-12)
 - Saat menonton live, tampilkan/salin URL stream langsung (bukan link share vt.tiktok.com)

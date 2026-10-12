@@ -61,6 +61,7 @@ final class Module {
             AccentColor.installIcons(loader);
         });
         run("region", () -> RegionSpoof.install(loader));
+        run("device spoof", () -> DeviceSpoof.install(loader));
         run("privacy", Privacy::install);
         if (RegionSpoof.active() && Prefs.on(Prefs.REGION_LANGUAGE)) {
             run("recommendation", () -> Recommendation.install(app, loader));

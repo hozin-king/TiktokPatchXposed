@@ -83,6 +83,10 @@ final class Prefs {
     static final String FAKE_VERIFIED = "fake_verified";
     /** Fake LIVE ring on your avatar; local rendering only. */
     static final String FAKE_LIVE = "fake_live";
+    /** Report a flagship device model instead of the real one. */
+    static final String DEVICE_SPOOF = "device_spoof";
+    /** Selected flagship profile id, e.g. "s24ultra"; empty for none. */
+    static final String DEVICE_SPOOF_MODEL = "device_spoof_model";
     /** Force maximum upload quality via A/B experiment overrides. */
     static final String UPLOAD_HD = "upload_hd";
     /** Raise offline-video limits and quality via A/B experiment overrides. */
@@ -105,7 +109,7 @@ final class Prefs {
     static final String DEFAULT_REGION = "de";
 
     /** Keys whose hooks only take effect when TikTok starts. */
-    static final String[] RESTART_KEYS = {COMMENT_REPOSTS, NEW_PROFILE, EXTRA_FEATURES, REGION, REGION_LANGUAGE, ADS, HIDE_INBOX_STORIES, ACCENT, AMOLED, SPOOF_ANDROID_ID};
+    static final String[] RESTART_KEYS = {COMMENT_REPOSTS, NEW_PROFILE, EXTRA_FEATURES, REGION, REGION_LANGUAGE, ADS, HIDE_INBOX_STORIES, ACCENT, AMOLED, SPOOF_ANDROID_ID, DEVICE_SPOOF};
 
     private static final Map<String, Boolean> DEFAULTS = new ConcurrentHashMap<>();
     private static final Map<String, Boolean> FLAGS = new ConcurrentHashMap<>();
@@ -166,6 +170,7 @@ final class Prefs {
         DEFAULTS.put(AUTO_STREAK, false);
         DEFAULTS.put(FAKE_VERIFIED, false);
         DEFAULTS.put(FAKE_LIVE, false);
+        DEFAULTS.put(DEVICE_SPOOF, false);
         DEFAULTS.put(UPLOAD_HD, false);
         DEFAULTS.put(OFFLINE_PLUS, false);
         DEFAULTS.put(WATCH_HISTORY, false);
@@ -190,7 +195,7 @@ final class Prefs {
         region = Regions.normalize(loaded.getString(REGION, DEFAULT_REGION));
         oldVideoDays = Math.max(1, loaded.getInt(OLD_VIDEO_DAYS, DEFAULT_OLD_VIDEO_DAYS));
         for (String key : new String[]{FILTER_WORDS, FILTER_AUTHORS, SPEEDS, TRANSLATE_EXCLUDE, STREAK_STICKER,
-                STREAK_STICKER_TITLE, ANDROID_ID}) TEXTS.put(key, loaded.getString(key, ""));
+                STREAK_STICKER_TITLE, ANDROID_ID, DEVICE_SPOOF_MODEL}) TEXTS.put(key, loaded.getString(key, ""));
         for (String key : new String[]{FILTER_MIN_LIKES, FILTER_MIN_VIEWS}) NUMBERS.put(key, loaded.getLong(key, 0));
         NUMBERS.put(ACCENT_COLOR, loaded.getLong(ACCENT_COLOR, DEFAULT_ACCENT));
         NUMBERS.put(OVERLAY_OPACITY, loaded.getLong(OVERLAY_OPACITY, 100));
@@ -199,7 +204,7 @@ final class Prefs {
 
     /** Text strings, numbers and the region, besides the switches in {@link #DEFAULTS}. */
     private static final String[] TEXT_KEYS = {REGION, FILTER_WORDS, FILTER_AUTHORS, SPEEDS, TRANSLATE_EXCLUDE,
-            STREAK_STICKER, STREAK_STICKER_TITLE};
+            STREAK_STICKER, STREAK_STICKER_TITLE, DEVICE_SPOOF_MODEL};
     private static final String[] LONG_KEYS = {FILTER_MIN_LIKES, FILTER_MIN_VIEWS, ACCENT_COLOR, OVERLAY_OPACITY};
 
     /** All settings as JSON, for a backup the user keeps wherever they like. */
