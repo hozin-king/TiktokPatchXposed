@@ -90,6 +90,12 @@ final class Prefs {
     /** Day count shown when {@link #FAKE_STREAK} is on. */
     static final String FAKE_STREAK_DAYS = "fake_streak_days";
     static final int DEFAULT_FAKE_STREAK_DAYS = 100;
+    /** Broadcast gallery videos instead of the camera when going live. */
+    static final String LIVE_VIDEO = "live_video";
+    /** Newline-separated absolute paths of the live video playlist. */
+    static final String LIVE_VIDEO_LIST = "live_video_list";
+    /** Play mode: 0 = once, 1 = loop playlist, 2 = loop current video. */
+    static final String LIVE_VIDEO_MODE = "live_video_mode";
     /** Report a flagship device model instead of the real one. */
     static final String DEVICE_SPOOF = "device_spoof";
     /** Selected flagship profile id, e.g. "s24ultra"; empty for none. */
@@ -182,6 +188,7 @@ final class Prefs {
         // Fake gifts are visible immediately; the toggle only disables them.
         DEFAULTS.put(FAKE_GIFT, true);
         DEFAULTS.put(FAKE_STREAK, false);
+        DEFAULTS.put(LIVE_VIDEO, false);
         DEFAULTS.put(DEVICE_SPOOF, false);
         DEFAULTS.put(BIO_LIMIT, false);
         DEFAULTS.put(UPLOAD_HD, false);

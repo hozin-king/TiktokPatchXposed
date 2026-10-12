@@ -38,6 +38,12 @@ import java.util.List;
  * picker with the real gift list; picking a gift builds a fake {@code GiftMessage} and feeds
  * it straight to the captured effect widget.
  *
+ * <p>For regular videos, the animation uses {@code GiftAnimationFragment} (verified in 47.0.3):
+ * it plays from a {@code Comment} carrying {@code fakeGiftId} + {@code giftEffectPath}.
+ * The effect path is cached by hooking {@code Comment.setGiftEffectPath} during normal
+ * gift browsing — a gift's animation can be faked once its assets have been resolved
+ * at least once by the app.
+ *
  * <p>Honest limits: only this device shows the animation — the streamer and other viewers see
  * nothing, no gift is actually sent and no coins are spent. The gift list needs the gift
  * panel to have been opened once (cache). NEVER calls any real gift-sending or payment API.
@@ -55,10 +61,30 @@ final class FakeGift {
     /** Live comment sheet. Verified: onCreateView(LayoutInflater, ViewGroup, Bundle) as obfuscated FT. */
     private static final String COMMENT_PANEL =
             "com.bytedance.android.livesdk.commonactionpanel.LiveCommentSheetPanel";
+    /**
+     * Regular video gift panel (comment keyboard assembly).
+     * Verified in 47.0.3 (dex_base/classes9.dex): onViewCreated(View).
+     */
+    private static final String VIDEO_GIFT_PANEL =
+            "com.ss.android.ugc.aweme.comment.keyboard.keyboardv2.refactor.CommentGiftSelectAssem";
+    /**
+     * Video gift animation player (DialogFragment).
+     * Verified in 47.0.3 (dex_adex/classes24.dex): reads Comment from
+     * getArguments().getSerializable("comment"), plays via PlayerController
+     * from comment.getGiftEffectPath() when comment.getFakeGiftId() != 0.
+     */
+    private static final String GIFT_ANIMATION_FRAGMENT =
+            "com.ss.android.ugc.aweme.comment.gift.ui.GiftAnimationFragment";
+    /** Comment model carrying fake gift data. Verified: setFakeGiftId(J), setGiftEffectPath(String). */
+    private static final String COMMENT_MODEL =
+            "com.ss.android.ugc.aweme.comment.model.Comment";
 
     private static volatile Object giftManager;
     private static volatile Object effectWidget;
     private static volatile ClassLoader savedLoader;
+    /** giftId -> local effect asset path, captured from normal gift browsing. */
+    private static final java.util.Map<Long, String> effectPathCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Gift entry for the picker: id + display name. */
     static final class GiftInfo {
@@ -93,6 +119,8 @@ final class FakeGift {
         }
         injectGiftPanelButton(loader);
         injectCommentPanelButton(loader);
+        injectVideoGiftPanelButton(loader);
+        hookEffectPathCache(loader);
         RuntimeLog.log("fake gift installed");
     }
 
@@ -220,7 +248,116 @@ final class FakeGift {
         RuntimeLog.log("fake gift: comment panel onCreateView not found");
     }
 
+    /**
+     * Trigger button inside the regular video gift panel (comment keyboard).
+     * Verified in 47.0.3: CommentGiftSelectAssem.onViewCreated(View).
+     * The button is placed at the bottom, next to the coin count.
+     */
+    private static void injectVideoGiftPanelButton(ClassLoader loader) {
+        Class<?> panel = Hooks.findClass(VIDEO_GIFT_PANEL, loader);
+        if (panel == null) {
+            RuntimeLog.log("fake gift: video gift panel not found");
+            return;
+        }
+        Hooks.Hook add = new Hooks.Hook() {
+            @Override protected void after(Hooks.Call param) {
+                if (!Prefs.on(Prefs.FAKE_GIFT)) return;
+                if (param.args.length > 0 && param.args[0] instanceof View) {
+                    addTriggerButton((View) param.args[0], Gravity.BOTTOM | Gravity.END, true);
+                }
+            }
+        };
+        for (Method m : panel.getDeclaredMethods()) {
+            Class<?>[] p = m.getParameterTypes();
+            if ("onViewCreated".equals(m.getName()) && p.length == 1
+                    && View.class.isAssignableFrom(p[0])) {
+                Hooks.hook(m, add);
+                RuntimeLog.log("fake gift: video gift panel hooked");
+                return;
+            }
+        }
+        RuntimeLog.log("fake gift: video gift panel onViewCreated not found");
+    }
+
+    /**
+     * Caches giftId -> effect path whenever the app resolves one during normal
+     * gift browsing. Verified in 47.0.3: CommentPublishViewModel.U63 calls
+     * Comment.setFakeGiftId(J) before Comment.setGiftEffectPath(String).
+     */
+    private static void hookEffectPathCache(ClassLoader loader) {
+        Class<?> comment = Hooks.findClass(COMMENT_MODEL, loader);
+        if (comment == null) {
+            RuntimeLog.log("fake gift: Comment model not found for path cache");
+            return;
+        }
+        for (Method m : comment.getDeclaredMethods()) {
+            Class<?>[] p = m.getParameterTypes();
+            if ("setGiftEffectPath".equals(m.getName()) && p.length == 1 && p[0] == String.class) {
+                Hooks.hook(m, new Hooks.Hook() {
+                    @Override protected void before(Hooks.Call param) {
+                        try {
+                            Object path = param.args.length > 0 ? param.args[0] : null;
+                            if (!(path instanceof String) || ((String) path).isEmpty()) return;
+                            Method getId = param.thisObject.getClass().getMethod("getFakeGiftId");
+                            Object id = getId.invoke(param.thisObject);
+                            if (id instanceof Number) {
+                                long giftId = ((Number) id).longValue();
+                                if (giftId != 0) {
+                                    effectPathCache.put(giftId, (String) path);
+                                }
+                            }
+                        } catch (Throwable ignored) { }
+                    }
+                });
+                RuntimeLog.log("fake gift: effect path cache hooked");
+                return;
+            }
+        }
+        RuntimeLog.log("fake gift: setGiftEffectPath not found");
+    }
+
+    /**
+     * Plays a fake gift animation for regular videos via GiftAnimationFragment.
+     * Returns false when the effect path is not cached yet (the gift's assets
+     * must have been resolved at least once by normal browsing).
+     */
+    static boolean playVideoGift(long giftId, Activity activity) {
+        ClassLoader loader = savedLoader;
+        if (loader == null || activity == null) return false;
+        String path = effectPathCache.get(giftId);
+        if (path == null || path.isEmpty()) {
+            RuntimeLog.log("fake gift video: no cached effect path for " + giftId);
+            return false;
+        }
+        try {
+            Class<?> commentClass = Class.forName(COMMENT_MODEL, false, loader);
+            Object comment = commentClass.newInstance();
+            commentClass.getMethod("setFakeGiftId", long.class).invoke(comment, giftId);
+            commentClass.getMethod("setGiftEffectPath", String.class).invoke(comment, path);
+
+            Bundle args = new Bundle();
+            args.putSerializable("comment", (java.io.Serializable) comment);
+
+            Class<?> fragmentClass = Class.forName(GIFT_ANIMATION_FRAGMENT, false, loader);
+            Object fragment = fragmentClass.newInstance();
+            fragmentClass.getMethod("setArguments", Bundle.class).invoke(fragment, args);
+
+            Object fm = activity.getClass().getMethod("getSupportFragmentManager").invoke(activity);
+            fragmentClass.getMethod("show", Class.forName("androidx.fragment.app.FragmentManager", false, loader), String.class)
+                    .invoke(fragment, fm, "GiftAnimationFragment");
+            RuntimeLog.log("fake gift video played: " + giftId);
+            return true;
+        } catch (Throwable t) {
+            RuntimeLog.log("fake gift video play failed: " + t);
+            return false;
+        }
+    }
+
     private static void addTriggerButton(View root, int gravity) {
+        addTriggerButton(root, gravity, false);
+    }
+
+    private static void addTriggerButton(View root, int gravity, boolean isVideo) {
         if (!(root instanceof ViewGroup)) return;
         // Avoid duplicates when the view is recreated.
         ViewGroup parent = (ViewGroup) root;
@@ -245,7 +382,7 @@ final class FakeGift {
         } else {
             lp = new ViewGroup.LayoutParams(size, size);
         }
-        button.setOnClickListener(v -> showPicker(activity));
+        button.setOnClickListener(v -> showPicker(activity, isVideo));
         parent.addView(button, lp);
     }
 
@@ -253,6 +390,10 @@ final class FakeGift {
 
     /** Gift picker reusing the module's bottom-sheet style. */
     private static void showPicker(Activity activity) {
+        showPicker(activity, false);
+    }
+
+    private static void showPicker(Activity activity, boolean isVideo) {
         List<GiftInfo> list = gifts();
         if (list.isEmpty()) {
             Toast.makeText(activity, I18n.get(I18n.S.FAKE_GIFT_EMPTY), Toast.LENGTH_SHORT).show();
@@ -266,7 +407,8 @@ final class FakeGift {
                 I18n.get(I18n.S.FAKE_GIFT_DESC), rows,
                 index -> {
                     GiftInfo g = list.get(index);
-                    if (!play(g.id)) {
+                    boolean ok = isVideo ? playVideoGift(g.id, activity) : play(g.id);
+                    if (!ok) {
                         Toast.makeText(activity, I18n.get(I18n.S.FAKE_GIFT_EMPTY),
                                 Toast.LENGTH_SHORT).show();
                     }

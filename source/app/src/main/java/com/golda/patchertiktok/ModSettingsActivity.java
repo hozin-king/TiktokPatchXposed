@@ -7,7 +7,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
-import android.graphics.drawable.ColorDrawable;
+import android.os.Environment;import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.content.res.ColorStateList;
@@ -33,6 +33,9 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -308,6 +311,7 @@ public final class ModSettingsActivity extends Activity {
             new Setting(Category.SOCIAL, S.FAKE_LIVE, S.FAKE_LIVE_DESC, Prefs.FAKE_LIVE),
             new Setting(Category.SOCIAL, S.FAKE_GIFT, S.FAKE_GIFT_DESC, Prefs.FAKE_GIFT),
             new Setting(Category.SOCIAL, S.FAKE_STREAK, S.FAKE_STREAK_DESC, Prefs.FAKE_STREAK),
+            new Setting(Category.SOCIAL, S.LIVE_VIDEO, S.LIVE_VIDEO_DESC, Prefs.LIVE_VIDEO),
             new Setting(Category.SOCIAL, S.BIO_LIMIT, S.BIO_LIMIT_DESC, Prefs.BIO_LIMIT),
             new Setting(Category.SOCIAL, S.NEW_PROFILE, S.NEW_PROFILE_DESC, Prefs.NEW_PROFILE),
             new Setting(Category.SOCIAL, S.EXTRA_FEATURES, S.EXTRA_FEATURES_DESC, Prefs.EXTRA_FEATURES),
@@ -441,7 +445,8 @@ public final class ModSettingsActivity extends Activity {
             {"author region", "AUTHOR_REGION"}, {"comment translation", "AUTO_TRANSLATE"}, {"downloads", "NO_WATERMARK"}, {"clean links", "CLEAN_LINKS"},
             {"invisible mode", "SECTION_GHOST"}, {"region", "REGION"}, {"recommendation", "REGION_LANGUAGE"},
             {"A/B overrides", "EXTRA_FEATURES"}, {"auto streaks", "AUTO_STREAK"},
-            {"device model", "DEVICE_SPOOF"}, {"longer bio", "BIO_LIMIT"}};
+            {"device model", "DEVICE_SPOOF"}, {"longer bio", "BIO_LIMIT"},
+            {"live video", "LIVE_VIDEO"}};
 
     private View statusPage() {
         Page page = new Page(I18n.get(S.STATUS_TITLE), true);
@@ -609,11 +614,21 @@ public final class ModSettingsActivity extends Activity {
             TextView streakValue = navigation(card, I18n.get(S.FAKE_STREAK_DAYS), streakDaysLabel(),
                     view -> push(streakDaysPage(), true));
             View streakRow = (View) streakValue.getParent();
+            TextView liveListValue = navigation(card, I18n.get(S.LIVE_VIDEO_LIST), liveVideoListLabel(),
+                    view -> push(liveVideoListPage(), true));
+            View liveListRow = (View) liveListValue.getParent();
+            TextView liveModeValue = navigation(card, I18n.get(S.LIVE_VIDEO_MODE), liveVideoModeLabel(),
+                    view -> push(liveVideoModePage(), true));
+            View liveModeRow = (View) liveModeValue.getParent();
             Runnable sync = () -> {
                 value.setText(Prefs.text(Prefs.TRANSLATE_EXCLUDE));
                 row.setVisibility(Prefs.on(Prefs.AUTO_TRANSLATE) ? View.VISIBLE : View.GONE);
                 streakValue.setText(streakDaysLabel());
                 streakRow.setVisibility(Prefs.on(Prefs.FAKE_STREAK) ? View.VISIBLE : View.GONE);
+                liveListValue.setText(liveVideoListLabel());
+                liveListRow.setVisibility(Prefs.on(Prefs.LIVE_VIDEO) ? View.VISIBLE : View.GONE);
+                liveModeValue.setText(liveVideoModeLabel());
+                liveModeRow.setVisibility(Prefs.on(Prefs.LIVE_VIDEO) ? View.VISIBLE : View.GONE);
             };
             sync.run();
             page.root.setTag(sync);
@@ -1495,6 +1510,182 @@ public final class ModSettingsActivity extends Activity {
     private String regionLabel() {
         Regions.Region region = Regions.find(Prefs.region());
         return region == null ? I18n.get(S.OFF) : region.name(locale);
+    }
+
+    private static final int REQ_LIVE_VIDEO_PICK = 0x11E;
+
+    private String liveVideoListLabel() {
+        int n = LiveVideoSource.playlist().size();
+        return n == 0 ? I18n.get(S.LIVE_VIDEO_EMPTY) : n + " video";
+    }
+
+    private String liveVideoModeLabel() {
+        int mode = (int) Prefs.number(Prefs.LIVE_VIDEO_MODE);
+        if (mode == LiveVideoSource.MODE_LOOP_LIST) return I18n.get(S.LIVE_VIDEO_MODE_LOOP_LIST);
+        if (mode == LiveVideoSource.MODE_LOOP_ONE) return I18n.get(S.LIVE_VIDEO_MODE_LOOP_ONE);
+        return I18n.get(S.LIVE_VIDEO_MODE_ONCE);
+    }
+
+    /** Playlist manager for live-from-video: add from gallery, tap to remove. */
+    private View liveVideoListPage() {
+        Page page = new Page(I18n.get(S.LIVE_VIDEO_LIST), false);
+        LinearLayout card = page.card();
+        // Risk warning at the top.
+        TextView risk = new TextView(this);
+        risk.setText(I18n.get(S.LIVE_VIDEO_RISK));
+        risk.setTextColor(palette.textSecondary);
+        risk.setTextSize(13);
+        risk.setPadding(dp(4), dp(4), dp(4), dp(12));
+        card.addView(risk);
+        // Add button.
+        LinearLayout addRow = row(card);
+        TextView addLabel = new TextView(this);
+        addLabel.setText(I18n.get(S.LIVE_VIDEO_PICK));
+        addLabel.setTextColor(palette.accent);
+        addLabel.setTextSize(16);
+        addLabel.setTypeface(Fonts.semibold(this));
+        addRow.addView(addLabel);
+        addRow.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("video/*");
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            startActivityForResult(Intent.createChooser(intent,
+                    I18n.get(S.LIVE_VIDEO_PICK)), REQ_LIVE_VIDEO_PICK);
+        });
+        refreshLiveVideoList(card, addRow);
+        return page.root;
+    }
+
+    private void refreshLiveVideoList(LinearLayout card, View addRow) {
+        // Remove old video rows (everything after the add row).
+        int start = card.indexOfChild(addRow) + 1;
+        while (card.getChildCount() > start) card.removeViewAt(start);
+        List<String> list = LiveVideoSource.playlist();
+        if (list.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(I18n.get(S.LIVE_VIDEO_EMPTY));
+            empty.setTextColor(palette.textSecondary);
+            empty.setTextSize(14);
+            empty.setPadding(dp(4), dp(8), dp(4), dp(8));
+            card.addView(empty);
+            return;
+        }
+        for (int i = 0; i < list.size(); i++) {
+            final String path = list.get(i);
+            final int index = i;
+            LinearLayout r = row(card);
+            TextView name = new TextView(this);
+            name.setText((i + 1) + ". " + new File(path).getName());
+            name.setTextColor(palette.textPrimary);
+            name.setTextSize(15);
+            name.setSingleLine(true);
+            name.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+            r.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView remove = new TextView(this);
+            remove.setText("✕");
+            remove.setTextColor(palette.textSecondary);
+            remove.setTextSize(16);
+            remove.setPadding(dp(12), dp(8), dp(4), dp(8));
+            r.addView(remove);
+            r.setOnClickListener(v -> {
+                List<String> cur = LiveVideoSource.playlist();
+                cur.remove(index);
+                LiveVideoSource.setPlaylist(cur);
+                refreshLiveVideoList(card, addRow);
+                onPrefsChanged();
+            });
+        }
+    }
+
+    /** Play mode picker: once / loop playlist / loop current video. */
+    private View liveVideoModePage() {
+        Page page = new Page(I18n.get(S.LIVE_VIDEO_MODE), false);
+        LinearLayout card = page.card();
+        int[] modes = {LiveVideoSource.MODE_ONCE, LiveVideoSource.MODE_LOOP_LIST,
+                LiveVideoSource.MODE_LOOP_ONE};
+        S[] labels = {S.LIVE_VIDEO_MODE_ONCE, S.LIVE_VIDEO_MODE_LOOP_LIST,
+                S.LIVE_VIDEO_MODE_LOOP_ONE};
+        for (int i = 0; i < modes.length; i++) {
+            final int mode = modes[i];
+            LinearLayout r = row(card);
+            TextView label = new TextView(this);
+            label.setText(I18n.get(labels[i]));
+            label.setTextColor(palette.textPrimary);
+            label.setTextSize(16);
+            r.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
+            if ((int) Prefs.number(Prefs.LIVE_VIDEO_MODE) == mode) {
+                ImageView check = new ImageView(this);
+                check.setImageDrawable(new Glyph(Glyph.Kind.CHECK, palette.accent, dp(22)));
+                r.addView(check, new LinearLayout.LayoutParams(dp(22), dp(22)));
+            }
+            r.setOnClickListener(v -> {
+                Prefs.setNumber(Prefs.LIVE_VIDEO_MODE, mode);
+                pop();
+                onPrefsChanged();
+            });
+        }
+        return page.root;
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_LIVE_VIDEO_PICK || resultCode != RESULT_OK || data == null) return;
+        List<Uri> uris = new ArrayList<>();
+        if (data.getClipData() != null) {
+            int n = data.getClipData().getItemCount();
+            for (int i = 0; i < n; i++) uris.add(data.getClipData().getItemAt(i).getUri());
+        } else if (data.getData() != null) {
+            uris.add(data.getData());
+        }
+        if (uris.isEmpty()) return;
+        new Thread(() -> {
+            List<String> added = new ArrayList<>();
+            for (Uri uri : uris) {
+                String path = copyVideoToPublic(uri);
+                if (path != null) added.add(path);
+            }
+            runOnUiThread(() -> {
+                if (!added.isEmpty()) {
+                    List<String> cur = LiveVideoSource.playlist();
+                    cur.addAll(added);
+                    LiveVideoSource.setPlaylist(cur);
+                    android.widget.Toast.makeText(this,
+                            added.size() + " video", android.widget.Toast.LENGTH_SHORT).show();
+                }
+                onPrefsChanged();
+                // Refresh the list page if it is on top.
+                pop();
+                push(liveVideoListPage(), true);
+            });
+        }).start();
+    }
+
+    /**
+     * Copies a picked video to public Download storage so TikTok's process
+     * (a different UID) can read it via an absolute path.
+     */
+    private String copyVideoToPublic(Uri uri) {
+        try {
+            File dir = new File(Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS), "TiktokPatchXposed");
+            if (!dir.exists() && !dir.mkdirs()) return null;
+            String name = "live_" + System.currentTimeMillis() + "_"
+                    + Math.abs(uri.toString().hashCode()) + ".mp4";
+            File out = new File(dir, name);
+            try (InputStream in = getContentResolver().openInputStream(uri);
+                 OutputStream os = new java.io.FileOutputStream(out)) {
+                if (in == null) return null;
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+            }
+            return out.getAbsolutePath();
+        } catch (Throwable t) {
+            RuntimeLog.log("live video copy failed: " + t);
+            return null;
+        }
     }
 
     /** Flagship model picker for the device spoof. */

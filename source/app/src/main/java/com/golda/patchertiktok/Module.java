@@ -101,6 +101,7 @@ final class Module {
         run("fake live ring", () -> FakeLiveRing.install(loader));
         run("fake gift", () -> FakeGift.install(loader));
         run("fake streak", () -> FakeStreak.install(loader));
+        run("live video", () -> LiveVideoSource.install(loader));
         run("bio limit", BioLimit::install);
         run("watch history", () -> WatchHistory.install(app, loader));
         run("live stream url", () -> LiveStreamUrl.install(app, loader));
