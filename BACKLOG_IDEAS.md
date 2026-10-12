@@ -4,6 +4,26 @@
 - Keinginan: ring bulat "LIVE" di foto profil, terlihat oleh orang biasa juga.
 - Kendala: status live ditentukan server TikTok; hook client hanya bisa fake lokal (diri sendiri yang lihat).
 
+### Hasil riset hook (2026-10-12, APK com.ss.android.ugc.trill v47.0.3, via androguard — MUNGKIN)
+- **Kandidat hook VALID, rantai render terverifikasi sampai ke pemanggil:**
+- `com.ss.android.ugc.aweme.profile.model.User.isLive()Z` — bytecode: `return roomId != 0`
+  (iget-wide `roomId J`, cmp-long dengan 0).
+- Renderer ring: `LX/1GqV;->LIZ(Lcom/ss/android/ugc/aweme/profile/model/LiveCircleParam;)Z`
+  (dex_split/classes21.dex, class ter-obfuscate) — di dalam method ini ADA pemanggilan
+  eksplisit `invoke-virtual User.isLive()Z`, lalu memakai `ListLiveCircleItemVM`
+  ("ListItemLiveCircleView") untuk menampilkan ring di `avatarView`.
+- Param: `LiveCircleParam` (field `user`, `avatarView`, `forceSkipLive`, `liveCircleViewType`,
+  `needLiveBreathAnim`, `sceneType`).
+- **Strategi hook:** hook `User.isLive()` → return `true`. Maka `LIZ()` melihat user "live"
+  dan me-render ring LIVE di avatar. Alternatif: set field `User.roomId` ke non-nol.
+- Batasan jujur:
+  - `LIZ()` juga membaca `forceSkipLive` dari param — jika caller mengesetnya, ring tetap
+    tidak muncul (untuk profil sendiri seharusnya tidak diset).
+  - Mengetuk ring akan mencoba masuk room live yang tidak ada (roomId=0) → kemungkinan
+    error/gagal masuk. Visual ring-nya yang fake, bukan room-nya.
+  - Fake tetap **lokal saja** — orang lain tidak melihat ring ini (server tidak tahu).
+  - Perlu verifikasi runtime di HP: aktifkan hook, buka profil sendiri, lihat apakah ring muncul.
+
 ## 2. Fake streak manager
 - Set jumlah hari streak (tampilan).
 - Memunculkan popup perayaan streak + pesan yang bisa diposting ke story.

@@ -81,6 +81,8 @@ final class Prefs {
     static final String ANDROID_ID = "android_id_value";
     /** Fake verified badge on your own profile; local rendering only. */
     static final String FAKE_VERIFIED = "fake_verified";
+    /** Fake LIVE ring on your avatar; local rendering only. */
+    static final String FAKE_LIVE = "fake_live";
     /** Force maximum upload quality via A/B experiment overrides. */
     static final String UPLOAD_HD = "upload_hd";
     /** Raise offline-video limits and quality via A/B experiment overrides. */
@@ -163,6 +165,7 @@ final class Prefs {
         // Automated messages are opt-in only.
         DEFAULTS.put(AUTO_STREAK, false);
         DEFAULTS.put(FAKE_VERIFIED, false);
+        DEFAULTS.put(FAKE_LIVE, false);
         DEFAULTS.put(UPLOAD_HD, false);
         DEFAULTS.put(OFFLINE_PLUS, false);
         DEFAULTS.put(WATCH_HISTORY, false);
