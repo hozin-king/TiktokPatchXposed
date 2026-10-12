@@ -158,6 +158,13 @@
     Risiko pembatasan akun TETAP TINGGI.
   - KESIMPULAN: MUNGKIN secara teknis — titik injeksi Java terverifikasi (tidak butuh hook native),
     tapi butuh verifikasi runtime + pemetaan audio + penanganan supresi kamera. Risiko akun tinggi.
+- IMPLEMENTASI (2026-10-13, commit 1f4cf77+): `LiveVideoSource.java` — hook `LLJJI` di
+  `LiveStreamVideoCapture`, ganti buffer kamera dengan `NV21Buffer` dari frame video
+  (decode via MediaExtractor+MediaCodec+ImageReader, konversi YUV_420_888→NV21).
+  Playlist multi-video, 3 mode (sekali/ulangi playlist/ulangi video), UI di pengaturan.
+  BATASAN: audio TIDAK diganti (mic tetap jalan, track audio video diabaikan — titik
+  injeksi audio tidak ditemukan di 47.0.3); server bisa menandai preRecorded → risiko
+  pembatasan akun. Perlu verifikasi runtime di HP.
 - SPEK UI (permintaan user 2026-10-12, bila titik injeksi terbukti):
   - MODE pemutaran: sekali putar lalu berhenti | loop 1x | loop tanpa batas.
   - Playlist: pilih/tambah BEBERAPA video, diputar berurutan.
