@@ -283,6 +283,20 @@ final class Prefs {
         return fallback != null && fallback;
     }
 
+    /**
+     * Baca flag langsung dari disk (SharedPreferences), bukan dari cache memori.
+     * Penting untuk multi-proses: TikTok bisa menjalankan streaming di proses
+     * terpisah yang tidak melihat perubahan FLAGS di proses UI.
+     */
+    static boolean onDisk(String key) {
+        SharedPreferences current = preferences;
+        if (current != null) {
+            Boolean fallback = DEFAULTS.get(key);
+            return current.getBoolean(key, fallback != null && fallback);
+        }
+        return on(key);
+    }
+
     static void set(String key, boolean value) {
         FLAGS.put(key, value);
         SharedPreferences current = preferences;

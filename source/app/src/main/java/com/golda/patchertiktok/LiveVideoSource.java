@@ -154,7 +154,9 @@ final class LiveVideoSource {
 
     /** Called on the camera frame thread; swaps in our video frame when active. */
     private static void inject(Hooks.Call param) {
-        if (!Prefs.on(Prefs.LIVE_VIDEO)) return;
+        // Pakai onDisk() bukan on(): streaming bisa jalan di proses terpisah
+        // yang tidak melihat FLAGS di memori proses UI.
+        if (!Prefs.onDisk(Prefs.LIVE_VIDEO)) return;
         if (finished.get()) return;
         int tw = (Integer) param.args[1];
         int th = (Integer) param.args[2];
@@ -247,10 +249,10 @@ final class LiveVideoSource {
         }
         int mode = (int) Prefs.number(Prefs.LIVE_VIDEO_MODE);
         int index = 0;
-        while (playing.get() && Prefs.on(Prefs.LIVE_VIDEO)) {
+        while (playing.get() && Prefs.onDisk(Prefs.LIVE_VIDEO)) {
             String path = list.get(index);
             playOne(path);
-            if (!playing.get() || !Prefs.on(Prefs.LIVE_VIDEO)) break;
+            if (!playing.get() || !Prefs.onDisk(Prefs.LIVE_VIDEO)) break;
             if (mode == MODE_LOOP_ONE) {
                 continue; // replay the same video
             }
@@ -327,7 +329,7 @@ final class LiveVideoSource {
         boolean outputEos = false;
         long startNs = System.nanoTime();
         try {
-            while (playing.get() && Prefs.on(Prefs.LIVE_VIDEO) && !outputEos) {
+            while (playing.get() && Prefs.onDisk(Prefs.LIVE_VIDEO) && !outputEos) {
                 if (!inputEos) {
                     int in = codec.dequeueInputBuffer(10000);
                     if (in >= 0) {
