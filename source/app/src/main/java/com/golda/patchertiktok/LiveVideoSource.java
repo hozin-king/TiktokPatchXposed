@@ -8,9 +8,11 @@ import android.media.MediaExtractor;
 import android.media.MediaFormat;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -99,21 +101,148 @@ final class LiveVideoSource {
         return m.getReturnType() == int.class;
     }
 
+    /** Hasil discovery berbasis signature (v8). */
+    private static final class Discovered {
+        Class<?> capture;
+        Class<?> nv21;
+        Class<?> frameBuffer;
+    }
+
+    /**
+     * v8: cari capture class + NV21Buffer class dari SEMUA class di dex,
+     * berdasarkan signature — tahan terhadap ganti nama obfuscation tiap
+     * update TikTok. Fast path (nama 47.0.3) dicoba dulu di install().
+     *
+     * <p>Batas jujur: kalau TikTok merombak total pipeline capture
+     * (signature method berubah), discovery ini gagal dan perlu analisis manual.
+     */
+    private static Discovered discover(ClassLoader loader) {
+        List<String> names = listDexClassNames(loader);
+        if (names.isEmpty()) {
+            RuntimeLog.log("live video: dex scan returned no classes");
+            return null;
+        }
+        // Urutkan: class yang namanya berbau live/capture/buffer dicek duluan
+        // supaya false positive kecil dan ketemu lebih cepat.
+        List<String> priority = new ArrayList<>(names.size());
+        List<String> rest = new ArrayList<>(names.size());
+        for (String n : names) {
+            String l = n.toLowerCase();
+            if (l.contains("livestream") || l.contains("capture") || l.contains("buffer")) {
+                priority.add(n);
+            } else {
+                rest.add(n);
+            }
+        }
+        priority.addAll(rest);
+
+        Class<?> capture = null;
+        Class<?> frameBuffer = null;
+        Class<?> nv21 = null;
+        Class<?> nv21Loose = null; // kandidat tanpa filter nama, cadangan
+        for (String n : priority) {
+            if (capture != null && nv21 != null) break;
+            Class<?> c;
+            try {
+                c = Hooks.findClass(n, loader);
+            } catch (Throwable t) {
+                continue;
+            }
+            if (c == null || c.isInterface() || c.isEnum()) continue;
+            if (capture == null) {
+                try {
+                    for (Method m : c.getDeclaredMethods()) {
+                        Class<?>[] p = m.getParameterTypes();
+                        if (p.length != 5 || p[0].isPrimitive()) continue;
+                        if (p[1] != int.class || p[2] != int.class
+                                || p[3] != int.class || p[4] != long.class) continue;
+                        if (m.getReturnType() != int.class) continue;
+                        String pn = p[0].getName().toLowerCase();
+                        if (pn.contains("buffer") || pn.contains("frame")) {
+                            capture = c;
+                            frameBuffer = p[0];
+                            break;
+                        }
+                    }
+                } catch (Throwable ignored) { }
+            }
+            if (nv21 == null || nv21Loose == null) {
+                try {
+                    c.getConstructor(byte[].class, int.class, int.class, Runnable.class);
+                    if (c.getName().toLowerCase().contains("buffer")) {
+                        nv21 = c;
+                    } else if (nv21Loose == null) {
+                        nv21Loose = c;
+                    }
+                } catch (Throwable ignored) { }
+            }
+        }
+        if (nv21 == null) nv21 = nv21Loose; // pakai cadangan bila tak ada yang bernama buffer
+        if (capture == null || nv21 == null || frameBuffer == null) {
+            RuntimeLog.log("live video: signature scan failed (capture=" + (capture != null)
+                    + " nv21=" + (nv21 != null) + ")");
+            return null;
+        }
+        Discovered d = new Discovered();
+        d.capture = capture;
+        d.nv21 = nv21;
+        d.frameBuffer = frameBuffer;
+        return d;
+    }
+
+    /** List semua nama class dari dex files milik app classloader. */
+    private static List<String> listDexClassNames(ClassLoader loader) {
+        List<String> out = new ArrayList<>();
+        try {
+            Class<?> baseDex = Class.forName("dalvik.system.BaseDexClassLoader");
+            Field pathListF = baseDex.getDeclaredField("pathList");
+            pathListF.setAccessible(true);
+            Object pathList = pathListF.get(loader);
+            Field dexElementsF = pathList.getClass().getDeclaredField("dexElements");
+            dexElementsF.setAccessible(true);
+            Object[] elements = (Object[]) dexElementsF.get(pathList);
+            for (Object el : elements) {
+                Field dexFileF = el.getClass().getDeclaredField("dexFile");
+                dexFileF.setAccessible(true);
+                Object dexFile = dexFileF.get(el);
+                if (dexFile == null) continue;
+                Method entriesM = dexFile.getClass().getDeclaredMethod("entries");
+                entriesM.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Enumeration<String> entries = (Enumeration<String>) entriesM.invoke(dexFile);
+                while (entries.hasMoreElements()) {
+                    String e = entries.nextElement();
+                    if (e.endsWith(".class")) {
+                        out.add(e.substring(0, e.length() - 6).replace('/', '.'));
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            RuntimeLog.log("live video: dex list failed: " + t);
+        }
+        RuntimeLog.log("live video: dex scan listed " + out.size() + " classes");
+        return out;
+    }
+
     static void install(ClassLoader loader) {
+        // Fast path: nama class yang terverifikasi di TikTok 47.0.3.
         Class<?> capture = Hooks.findClass(CAPTURE, loader);
-        if (capture == null) {
-            RuntimeLog.log("live video unavailable: LiveStreamVideoCapture not found");
-            return;
-        }
         Class<?> nv21 = Hooks.findClass(NV21_BUFFER, loader);
-        if (nv21 == null) {
-            RuntimeLog.log("live video unavailable: NV21Buffer not found");
-            return;
-        }
         Class<?> frameBuffer = Hooks.findClass(FRAME_BUFFER, loader);
-        if (frameBuffer == null) {
-            RuntimeLog.log("live video unavailable: VideoFrame$Buffer not found");
-            return;
+        if (capture == null || nv21 == null || frameBuffer == null) {
+            // Fallback v8: update TikTok mengganti nama obfuscation — cari class
+            // berdasarkan SIGNATURE, bukan nama. Scan semua class di dex.
+            RuntimeLog.log("live video: known class names not found, scanning dex by signature...");
+            Discovered d = discover(loader);
+            if (d == null) {
+                RuntimeLog.log("live video unavailable: capture class not found by signature");
+                return;
+            }
+            capture = d.capture;
+            nv21 = d.nv21;
+            frameBuffer = d.frameBuffer;
+            RuntimeLog.log("live video: discovered capture=" + capture.getName()
+                    + " nv21=" + nv21.getName());
         }
         try {
             nv21Ctor = nv21.getConstructor(byte[].class, int.class, int.class, Runnable.class);
