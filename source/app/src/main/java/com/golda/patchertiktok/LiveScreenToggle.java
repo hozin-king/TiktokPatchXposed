@@ -97,9 +97,10 @@ final class LiveScreenToggle {
             }
             Prefs.set(Prefs.LIVE_VIDEO, nowOn);
             refreshLabel(toggle);
-            Toast.makeText(activity,
-                    nowOn ? "Live dari video galeri AKTIF" : "Kembali ke kamera biasa",
-                    Toast.LENGTH_SHORT).show();
+            String diag = nowOn
+                    ? "Live dari video galeri AKTIF (hook:" + (LiveVideoSource.isHooked() ? "ok" : "GAGAL") + ")"
+                    : "Kembali ke kamera biasa";
+            Toast.makeText(activity, diag, Toast.LENGTH_LONG).show();
         });
         parent.addView(toggle, Math.max(0, index));
         markInstalled(activity);
