@@ -66,6 +66,14 @@ final class LiveVideoSource {
     private static final AtomicBoolean finished = new AtomicBoolean(false);
     private static final AtomicReference<Frame> current = new AtomicReference<>();
 
+    /**
+     * Resolution negotiated by TikTok's camera pipeline, captured from the
+     * hook args on every frame. The decoder scales video frames to this size
+     * so the pipeline's width/height never change mid-stream.
+     */
+    private static volatile int targetW = 0;
+    private static volatile int targetH = 0;
+
     /** Latest decoded video frame, shared with the hook. */
     static final class Frame {
         final byte[] nv21;
@@ -131,18 +139,28 @@ final class LiveVideoSource {
     private static void inject(Hooks.Call param) {
         if (!Prefs.on(Prefs.LIVE_VIDEO)) return;
         if (finished.get()) return;
+        int tw = (Integer) param.args[1];
+        int th = (Integer) param.args[2];
+        if (tw > 0 && th > 0) {
+            targetW = tw;
+            targetH = th;
+        }
         // Start the decoder lazily on the first camera frame.
         if (!playing.get()) startPlayer();
         Frame f = current.get();
         if (f == null || f.nv21 == null) return;
+        // Only inject when the frame already matches the pipeline's expected
+        // resolution. The encoder is configured once at stream start; changing
+        // width/height mid-stream breaks it and the live dies ~1s after start.
+        // The decoder scales frames to (targetW, targetH) before publishing,
+        // so args[1]/args[2] must pass through UNCHANGED here.
+        if (f.width != tw || f.height != th) return;
         try {
             // No-op release: the byte[] is shared until the decoder replaces it;
             // the old array stays alive via the buffer reference until released.
             Object buf = nv21Ctor.newInstance(f.nv21, f.width, f.height, (Runnable) () -> { });
             param.args[0] = buf;
-            param.args[1] = f.width;
-            param.args[2] = f.height;
-            // args[3] (rotation) and args[4] (timestampNs) pass through unchanged.
+            // args[1]..args[4] (width, height, rotation, timestampNs) pass through unchanged.
         } catch (Throwable t) {
             RuntimeLog.log("live video inject failed: " + t);
         }
@@ -325,7 +343,21 @@ final class LiveVideoSource {
                                 }
                                 byte[] nv21 = yuv420ToNv21(image);
                                 if (nv21 != null) {
-                                    current.set(new Frame(nv21, image.getWidth(), image.getHeight()));
+                                    int vw = image.getWidth();
+                                    int vh = image.getHeight();
+                                    int tw = targetW;
+                                    int th = targetH;
+                                    // Scale to the camera pipeline's resolution so the
+                                    // hook never has to change width/height mid-stream.
+                                    if (tw > 0 && th > 0 && (vw != tw || vh != th)) {
+                                        byte[] scaled = scaleNv21CenterCrop(nv21, vw, vh, tw, th);
+                                        if (scaled != null) {
+                                            nv21 = scaled;
+                                            vw = tw;
+                                            vh = th;
+                                        }
+                                    }
+                                    current.set(new Frame(nv21, vw, vh));
                                 }
                             } finally {
                                 image.close();
@@ -342,6 +374,59 @@ final class LiveVideoSource {
             extractor.release();
             reader.close();
         }
+    }
+
+    /**
+     * Scales an NV21 frame to the target size with a center crop (fill, no
+     * letterbox). Nearest-neighbor: fast enough on the decoder thread.
+     * Returns null if the dimensions are unusable.
+     */
+    private static byte[] scaleNv21CenterCrop(byte[] src, int sw, int sh, int tw, int th) {
+        if (src == null) return null;
+        if ((sw & 1) != 0 || (sh & 1) != 0 || (tw & 1) != 0 || (th & 1) != 0) return null;
+        if (sw <= 0 || sh <= 0 || tw <= 0 || th <= 0) return null;
+        if (src.length < sw * sh * 3 / 2) return null;
+        // Center-crop source rect matching the target aspect ratio.
+        float targetAspect = (float) tw / th;
+        float srcAspect = (float) sw / sh;
+        int cw = sw, ch = sh, cx = 0, cy = 0;
+        if (srcAspect > targetAspect) {
+            cw = Math.round(sh * targetAspect) & ~1;
+            cx = ((sw - cw) / 2) & ~1;
+        } else {
+            ch = Math.round(sw / targetAspect) & ~1;
+            cy = ((sh - ch) / 2) & ~1;
+        }
+        if (cw < 2 || ch < 2) return null;
+        byte[] dst = new byte[tw * th * 3 / 2];
+        // Y plane.
+        for (int y = 0; y < th; y++) {
+            int sy = cy + (y * ch / th);
+            int sRow = sy * sw + cx;
+            int dRow = y * tw;
+            for (int x = 0; x < tw; x++) {
+                dst[dRow + x] = src[sRow + (x * cw / tw)];
+            }
+        }
+        // Interleaved VU plane (each chroma sample covers 2x2 luma pixels).
+        int srcVuBase = sw * sh;
+        int dstVuBase = tw * th;
+        int scw = cw / 2, sch = ch / 2;
+        int scx = cx / 2, scy = cy / 2;
+        int uvTw = tw / 2, uvTh = th / 2;
+        int srcUvRow = sw / 2;
+        for (int y = 0; y < uvTh; y++) {
+            int sy = scy + (y * sch / uvTh);
+            int sRow = srcVuBase + sy * srcUvRow + scx;
+            int dRow = dstVuBase + y * uvTw;
+            for (int x = 0; x < uvTw; x++) {
+                int sOff = sRow + (x * scw / uvTw) * 2;
+                int dOff = dRow + x * 2;
+                dst[dOff] = src[sOff];         // V
+                dst[dOff + 1] = src[sOff + 1]; // U
+            }
+        }
+        return dst;
     }
 
     /** Converts an Image in YUV_420_888 to a packed NV21 byte array. */

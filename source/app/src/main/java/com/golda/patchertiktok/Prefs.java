@@ -215,19 +215,20 @@ final class Prefs {
         region = Regions.normalize(loaded.getString(REGION, DEFAULT_REGION));
         oldVideoDays = Math.max(1, loaded.getInt(OLD_VIDEO_DAYS, DEFAULT_OLD_VIDEO_DAYS));
         for (String key : new String[]{FILTER_WORDS, FILTER_AUTHORS, SPEEDS, TRANSLATE_EXCLUDE, STREAK_STICKER,
-                STREAK_STICKER_TITLE, ANDROID_ID, DEVICE_SPOOF_MODEL}) TEXTS.put(key, loaded.getString(key, ""));
+                STREAK_STICKER_TITLE, ANDROID_ID, DEVICE_SPOOF_MODEL, LIVE_VIDEO_LIST}) TEXTS.put(key, loaded.getString(key, ""));
         for (String key : new String[]{FILTER_MIN_LIKES, FILTER_MIN_VIEWS}) NUMBERS.put(key, loaded.getLong(key, 0));
         NUMBERS.put(FAKE_STREAK_DAYS, loaded.getLong(FAKE_STREAK_DAYS, DEFAULT_FAKE_STREAK_DAYS));
         NUMBERS.put(ACCENT_COLOR, loaded.getLong(ACCENT_COLOR, DEFAULT_ACCENT));
         NUMBERS.put(OVERLAY_OPACITY, loaded.getLong(OVERLAY_OPACITY, 100));
+        NUMBERS.put(LIVE_VIDEO_MODE, loaded.getLong(LIVE_VIDEO_MODE, LiveVideoSource.MODE_ONCE));
         rebuildRules();
     }
 
     /** Text strings, numbers and the region, besides the switches in {@link #DEFAULTS}. */
     private static final String[] TEXT_KEYS = {REGION, FILTER_WORDS, FILTER_AUTHORS, SPEEDS, TRANSLATE_EXCLUDE,
-            STREAK_STICKER, STREAK_STICKER_TITLE, DEVICE_SPOOF_MODEL};
+            STREAK_STICKER, STREAK_STICKER_TITLE, DEVICE_SPOOF_MODEL, LIVE_VIDEO_LIST};
     private static final String[] LONG_KEYS = {FILTER_MIN_LIKES, FILTER_MIN_VIEWS, ACCENT_COLOR, OVERLAY_OPACITY,
-            FAKE_STREAK_DAYS};
+            FAKE_STREAK_DAYS, LIVE_VIDEO_MODE};
 
     /** All settings as JSON, for a backup the user keeps wherever they like. */
     static String export() {
