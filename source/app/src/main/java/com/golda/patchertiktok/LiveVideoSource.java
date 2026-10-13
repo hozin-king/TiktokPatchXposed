@@ -61,6 +61,7 @@ final class LiveVideoSource {
 
     private static volatile Constructor<?> nv21Ctor;
     private static volatile boolean hooked;
+    private static volatile String hookedMethodNames = "";
 
     private static final AtomicBoolean playing = new AtomicBoolean(false);
     private static final AtomicBoolean finished = new AtomicBoolean(false);
@@ -120,30 +121,35 @@ final class LiveVideoSource {
             RuntimeLog.log("live video unavailable: NV21Buffer([BII R) not found");
             return;
         }
-        Method target = null;
-        // Cari berdasarkan signature, bukan nama — nama method hasil obfuscation
-        // (mis. "LLJJI") bisa berubah tiap update TikTok.
+        // Hook SEMUA method yang cocok signature — nama method hasil obfuscation
+        // (mis. "LLJJI") bisa berubah tiap update TikTok, dan bisa ada beberapa
+        // kandidat; mana pun yang dipanggil saat streaming akan meng-inject video.
+        int hookedCount = 0;
+        StringBuilder hookedNames = new StringBuilder();
         for (Method m : capture.getDeclaredMethods()) {
             if (!matchesFrameSignature(m, frameBuffer)) continue;
-            // Prefer nama lama bila masih ada (kompatibilitas mundur).
-            if ("LLJJI".equals(m.getName())) {
-                target = m;
-                break;
+            final String name = m.getName();
+            try {
+                Hooks.hook(m, new Hooks.Hook() {
+                    @Override protected void before(Hooks.Call param) {
+                        inject(param);
+                    }
+                });
+                hookedCount++;
+                if (hookedNames.length() > 0) hookedNames.append(',');
+                hookedNames.append(name);
+                RuntimeLog.log("live video: hooking " + name);
+            } catch (Throwable t) {
+                RuntimeLog.log("live video: hook failed for " + name + ": " + t);
             }
-            if (target == null) target = m;
         }
-        if (target == null) {
+        if (hookedCount == 0) {
             RuntimeLog.log("live video unavailable: frame method (Buffer,IIIJ)I not found");
             return;
         }
-        RuntimeLog.log("live video: hooking " + target.getName());
-        Hooks.hook(target, new Hooks.Hook() {
-            @Override protected void before(Hooks.Call param) {
-                inject(param);
-            }
-        });
         hooked = true;
-        RuntimeLog.log("live video installed");
+        hookedMethodNames = hookedNames.toString();
+        RuntimeLog.log("live video installed (" + hookedCount + " methods)");
     }
 
     /** Called on the camera frame thread; swaps in our video frame when active. */
@@ -204,7 +210,7 @@ final class LiveVideoSource {
     /** Diagnostik untuk Toast: status decoder dan frame. */
     static String diagStatus() {
         Frame f = current.get();
-        return "hook:" + (hooked ? "ok" : "GAGAL")
+        return "hook:" + (hooked ? "ok(" + hookedMethodNames + ")" : "GAGAL")
                 + " play:" + (playing.get() ? "ya" : "tidak")
                 + " frame:" + (f != null && f.nv21 != null ? f.width + "x" + f.height : "kosong");
     }
