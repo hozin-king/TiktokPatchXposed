@@ -137,6 +137,9 @@ final class LiveScreenToggle {
             vv.setVideoPath(path);
             vv.setOnPreparedListener((MediaPlayer mp) -> {
                 mp.setLooping(true);
+                // Preview visual saja: bisukan total supaya tidak berebut
+                // audio focus dengan pemutar video TikTok (FYP jadi hening).
+                mp.setVolume(0f, 0f);
                 vv.start();
             });
             vv.setOnErrorListener((mp, what, extra) -> {
@@ -175,9 +178,26 @@ final class LiveScreenToggle {
         }
         if (old != null) {
             try {
+                // Matikan total: stop MediaPlayer di dalam overlay supaya tidak
+                // jalan hantu di background dan mengganggu audio TikTok.
+                if (old instanceof ViewGroup) stopVideoViews((ViewGroup) old);
                 ViewGroup parent = (ViewGroup) old.getParent();
                 if (parent != null) parent.removeView(old);
             } catch (Throwable ignored) { }
+        }
+    }
+
+    /** Stop semua VideoView di dalam view group (matikan MediaPlayer hantu). */
+    private static void stopVideoViews(ViewGroup root) {
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View c = root.getChildAt(i);
+            if (c instanceof VideoView) {
+                try {
+                    ((VideoView) c).stopPlayback();
+                } catch (Throwable ignored) { }
+            } else if (c instanceof ViewGroup) {
+                stopVideoViews((ViewGroup) c);
+            }
         }
     }
 
