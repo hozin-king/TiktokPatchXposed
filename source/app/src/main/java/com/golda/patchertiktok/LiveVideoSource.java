@@ -201,6 +201,14 @@ final class LiveVideoSource {
 
     static boolean isHooked() { return hooked; }
 
+    /** Diagnostik untuk Toast: status decoder dan frame. */
+    static String diagStatus() {
+        Frame f = current.get();
+        return "hook:" + (hooked ? "ok" : "GAGAL")
+                + " play:" + (playing.get() ? "ya" : "tidak")
+                + " frame:" + (f != null && f.nv21 != null ? f.width + "x" + f.height : "kosong");
+    }
+
     /** Stops the decoder; the camera feed passes through again. */
     static void stop() {
         playing.set(false);
