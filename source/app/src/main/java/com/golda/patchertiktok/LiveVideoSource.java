@@ -88,6 +88,16 @@ final class LiveVideoSource {
 
     private LiveVideoSource() { }
 
+    /** Signature frame kamera: (VideoFrame$Buffer, int, int, int, long) -> int. */
+    private static boolean matchesFrameSignature(Method m, Class<?> frameBuffer) {
+        Class<?>[] p = m.getParameterTypes();
+        if (p.length != 5) return false;
+        if (!frameBuffer.isAssignableFrom(p[0])) return false;
+        if (p[1] != int.class || p[2] != int.class || p[3] != int.class) return false;
+        if (p[4] != long.class) return false;
+        return m.getReturnType() == int.class;
+    }
+
     static void install(ClassLoader loader) {
         Class<?> capture = Hooks.findClass(CAPTURE, loader);
         if (capture == null) {
@@ -111,21 +121,22 @@ final class LiveVideoSource {
             return;
         }
         Method target = null;
+        // Cari berdasarkan signature, bukan nama — nama method hasil obfuscation
+        // (mis. "LLJJI") bisa berubah tiap update TikTok.
         for (Method m : capture.getDeclaredMethods()) {
-            if (!"LLJJI".equals(m.getName())) continue;
-            Class<?>[] p = m.getParameterTypes();
-            if (p.length != 5) continue;
-            if (!frameBuffer.isAssignableFrom(p[0])) continue;
-            if (p[1] != int.class || p[2] != int.class || p[3] != int.class) continue;
-            if (p[4] != long.class) continue;
-            if (m.getReturnType() != int.class) continue;
-            target = m;
-            break;
+            if (!matchesFrameSignature(m, frameBuffer)) continue;
+            // Prefer nama lama bila masih ada (kompatibilitas mundur).
+            if ("LLJJI".equals(m.getName())) {
+                target = m;
+                break;
+            }
+            if (target == null) target = m;
         }
         if (target == null) {
-            RuntimeLog.log("live video unavailable: LLJJI(Buffer,IIIJ)I not found");
+            RuntimeLog.log("live video unavailable: frame method (Buffer,IIIJ)I not found");
             return;
         }
+        RuntimeLog.log("live video: hooking " + target.getName());
         Hooks.hook(target, new Hooks.Hook() {
             @Override protected void before(Hooks.Call param) {
                 inject(param);
