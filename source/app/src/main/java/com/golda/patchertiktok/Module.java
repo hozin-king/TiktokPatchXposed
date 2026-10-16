@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Everything the module does once TikTok's classes are available, for either entry point. */
 final class Module {
-    private static final String[] TARGETS = {"com.zhiliaoapp.musically", "com.ss.android.ugc.trill"};
+    private static final String[] TARGETS = {"com.zhiliaoapp.musically", "com.ss.android.ugc.trill", "com.bytedance.snail"};
     private static final AtomicBoolean LOADED = new AtomicBoolean();
     private static final AtomicBoolean STARTED = new AtomicBoolean();
 
