@@ -3,5 +3,6 @@
     <string-array name="xposedscope">
         <item>com.zhiliaoapp.musically</item>
         <item>com.ss.android.ugc.trill</item>
+        <item>com.bytedance.snail</item>
     </string-array>
 </resources>
