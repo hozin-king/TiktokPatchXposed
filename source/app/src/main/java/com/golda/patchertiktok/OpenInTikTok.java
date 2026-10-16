@@ -6,7 +6,7 @@ import android.os.Bundle;
 
 /** LSPosed's "module settings" button: opens the settings screen inside TikTok. No UI of its own. */
 public final class OpenInTikTok extends Activity {
-    private static final String[] TARGETS = {"com.zhiliaoapp.musically", "com.ss.android.ugc.trill"};
+    private static final String[] TARGETS = {"com.zhiliaoapp.musically", "com.ss.android.ugc.trill", "com.bytedance.snail"};
 
     @Override
     protected void onCreate(Bundle saved) {
