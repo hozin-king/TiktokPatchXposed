@@ -16,7 +16,10 @@ final class Module {
     private Module() { }
 
     static boolean targets(String packageName) {
-        return TARGETS[0].equals(packageName) || TARGETS[1].equals(packageName);
+        for (String target : TARGETS) {
+            if (target.equals(packageName)) return true;
+        }
+        return false;
     }
 
     static void load(String packageName, String processName, ClassLoader loader) {
