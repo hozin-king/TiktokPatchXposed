@@ -179,7 +179,9 @@ final class AuthorRegion {
         if (name == null || user == null) return;
         Object handle = Reflect.call(user, "getUniqueId");
         Object nickname = Reflect.call(user, "getNickname");
-        String flag = RegionFlag.of(userRegion(user));
+        String region = userRegion(user);
+        remember(handle, region);
+        String flag = RegionFlag.of(region);
         CharSequence text = name.getText();
         if (flag == null || text == null || text.length() == 0) return;
         String shown = text.toString();
@@ -231,7 +233,29 @@ final class AuthorRegion {
         Object author = Reflect.call(aweme, "getAuthor");
         Object region = Reflect.call(author, "getRegion");
         if (!(region instanceof String) || ((String) region).length() != 2) region = Reflect.call(aweme, "getRegion");
-        return region instanceof String ? (String) region : null;
+        if (!(region instanceof String)) return null;
+        remember(Reflect.call(author, "getUniqueId"), (String) region);
+        return (String) region;
+    }
+
+    /** Countries of people seen in the feed or on their profile, by @handle: comments carry none. */
+    private static final java.util.Map<String, String> SEEN = new java.util.LinkedHashMap<String, String>(64, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(java.util.Map.Entry<String, String> eldest) { return size() > 512; }
+    };
+
+    private static void remember(Object handle, String region) {
+        if (!(handle instanceof String) || ((String) handle).isEmpty() || region == null || region.length() != 2) return;
+        synchronized (SEEN) {
+            SEEN.put((String) handle, region);
+        }
+    }
+
+    /** The country last seen for this @handle, or null. */
+    static String seen(String handle) {
+        if (handle == null) return null;
+        synchronized (SEEN) {
+            return SEEN.get(handle);
+        }
     }
 
     /** The date label of the item that is fully on screen; others in the pager are off screen. */

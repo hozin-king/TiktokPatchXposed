@@ -36,10 +36,10 @@ final class AbOverrides {
 
     private static void collect() {
         if (Prefs.on(Prefs.ADS)) {
+            // Only keys TikTok 47.1.4 still reads through these managers; feed and rendered ads are
+            // removed from the models elsewhere.
             for (String key : new String[]{"enable_normal_splash_ad", "enable_normal_splash_ad_ab", "splash_ad_enable",
-                    "enable_live_splash", "aweme_splash_first_launch_enabled", "splash_show",
-                    "enable_splash_show_count_for_empty", "is_enable_splash_first_show_retrieval",
-                    "enable_feed_ad", "enable_video_ad", "ad_banner_enable", "commerce_enable"}) {
+                    "aweme_splash_first_launch_enabled", "enable_splash_show_count_for_empty"}) {
                 VALUES.put(key, false);
             }
         }
@@ -48,6 +48,8 @@ final class AbOverrides {
             VALUES.put("repost_support_reply", 1);
             VALUES.put("repost_support_digg", 1);
         }
+        // Only the own-author gate of Repost; TikTok's other repost permissions still apply.
+        if (Prefs.on(Prefs.SELF_REPOST)) VALUES.put("enable_self_repost", 1);
         if (Prefs.on(Prefs.NEW_PROFILE)) {
             VALUES.put("profile_bg_in_allow_list", 1);
             VALUES.put("profile_bg_enable_consumption_group", 3);
@@ -67,6 +69,36 @@ final class AbOverrides {
                 VALUES.put(key, true);
             }
         }
+        // Group 2 is the one whose keyboard takes up to nine pictures.
+        if (Prefs.on(Prefs.COMMENT_PHOTOS)) VALUES.put("comment_multi_photo_group", 2);
+        // The publish screen's hashtag guard is off, and its cap high if another check reads it.
+        if (Prefs.on(Prefs.NO_HASHTAG_LIMIT)) {
+            VALUES.put("studio_publish_limit_hashtag_switch", false);
+            VALUES.put("studio_publish_hashtag_max_limit", 999);
+        }
+        if (Prefs.on(Prefs.SPEED_3X)) VALUES.put("feed_support_3x_speed", true);
+        // Without this experiment TikTok draws the older comment cells, which have no translate
+        // button at all. With it, each foreign comment gets TikTok's own one; style 2 adds the
+        // "translate all" button left of the panel's close X. Nothing translates until tapped.
+        VALUES.put("comment_auto_translation_enabled", true);
+        VALUES.put("comment_auto_translation_consumer_style", 2);
+        VALUES.put("comment_auto_translation_not_translate_by_default", true);
+        // TikTok's floating video window (needs "display over other apps"); phones and tablets.
+        if (Prefs.on(Prefs.PIP_FEED)) {
+            VALUES.put("enable_pip_feed", 1);
+            VALUES.put("enable_pip_feed_pad", 1);
+        }
+        // An unedited video goes up as the file itself (TikTok's own "upload directly"), and the
+        // gallery lets 4K videos in instead of refusing them.
+        if (Prefs.on(Prefs.UPLOAD_ORIGINAL)) {
+            VALUES.put("enable_4k_import_benchmark", true);
+            VALUES.put("studio_enable_ve_copy_with_metadata", true);
+            VALUES.put("studio_enable_upload_source_file_directly", true);
+        }
+        if (Prefs.on(Prefs.CAMERA_EXTRAS)) {
+            VALUES.put("camera_teleprompter_mode", 1);
+            VALUES.put("video_capture_green_screen_standalone", true);
+        }
         if (Prefs.on(Prefs.EXTRA_FEATURES)) {
             VALUES.put("long_press_speed_up_enable", true);
             VALUES.put("long_press_speed_up_lock", 120);
@@ -77,11 +109,10 @@ final class AbOverrides {
             VALUES.put("audio_comment_publish", 1);
             VALUES.put("comment_enable_live_photo", 1);
             VALUES.put("comment_by_shooting", 1);
-            VALUES.put("comment_sort_opt_style", 1);
+            // The sort menu's full set of choices is gated on exactly 2.
+            VALUES.put("comment_sort_opt_style", 2);
             VALUES.put("comment_hate_opt", 1);
             VALUES.put("tt_comment_hate_animation_opt", 2);
-            VALUES.put("dm_customize_message_bubble", 1);
-            VALUES.put("im_contacts_multi_select_limit", 999);
             VALUES.put("inbox_bb_archive_enable", 1);
             VALUES.put("background_play_enable", 1);
             VALUES.put("fyp_auto_scroll", 1);

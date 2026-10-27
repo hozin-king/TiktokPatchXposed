@@ -36,6 +36,8 @@ final class DownloadSheet {
         final Glyph.Kind icon;
         final int tile;
         final boolean best;
+        /** A download arrow at the end; off for rows that are not downloads. */
+        boolean arrow = true;
 
         Row(String title, String detail, Glyph.Kind icon, int tile, boolean best) {
             this.title = title;
@@ -212,9 +214,11 @@ final class DownloadSheet {
         }
         row.addView(texts, new LinearLayout.LayoutParams(0, -2, 1f));
 
-        ImageView arrow = new ImageView(activity);
-        arrow.setImageDrawable(new Glyph(Glyph.Kind.DOWNLOAD, palette.chevron, dp(18)));
-        row.addView(arrow, new LinearLayout.LayoutParams(dp(22), dp(22)));
+        if (item.arrow) {
+            ImageView arrow = new ImageView(activity);
+            arrow.setImageDrawable(new Glyph(Glyph.Kind.DOWNLOAD, palette.chevron, dp(18)));
+            row.addView(arrow, new LinearLayout.LayoutParams(dp(22), dp(22)));
+        }
         return row;
     }
 

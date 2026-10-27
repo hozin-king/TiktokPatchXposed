@@ -2,7 +2,6 @@ package com.golda.patchertiktok;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.ContextWrapper;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -134,7 +133,7 @@ public final class DownloadsPlus {
                         }
                         if (post == null) post = model.get(call.thisObject);
                         if (post == null) return;
-                        Activity activity = activity(context);
+                        Activity activity = Views.activity(context);
                         if (activity == null) activity = ownerActivity(call.thisObject);
                         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
                         handle(call, activity, post);
@@ -160,32 +159,7 @@ public final class DownloadsPlus {
         }
         List<DownloadSheet.Row> rows = new ArrayList<>();
         List<List<DownloadModels.Item>> jobs = new ArrayList<>();
-        if (photo) {
-            List<DownloadModels.Item> pictures = DownloadModels.photos(images);
-            if (pictures.isEmpty()) return;
-            rows.add(new DownloadSheet.Row(I18n.get(pictures.size() > 1 ? I18n.S.DL_ALL_PHOTOS : I18n.S.DL_PHOTO),
-                    pictures.size() > 1
-                            ? String.format(Locale.ROOT, I18n.get(I18n.S.DL_PHOTO_COUNT), pictures.size())
-                            : DownloadFormat.dimensions(pictures.get(0).width, pictures.get(0).height),
-                    Glyph.Kind.IMAGE, DownloadSheet.PHOTO_TILE, false));
-            jobs.add(pictures);
-        } else {
-            List<DownloadModels.Item> videos = DownloadModels.videos(post);
-            if (videos.isEmpty()) return;
-            for (int i = 0; i < videos.size(); i++) {
-                DownloadModels.Item video = videos.get(i);
-                rows.add(new DownloadSheet.Row(DownloadFormat.resolution(video.width, video.height),
-                        DownloadFormat.size(video.bytes, video.estimated), Glyph.Kind.PLAY,
-                        DownloadSheet.VIDEO_TILE, i == 0 && videos.size() > 1));
-                jobs.add(Collections.singletonList(video));
-            }
-        }
-        DownloadModels.Item audio = DownloadModels.audio(post);
-        if (audio != null) {
-            rows.add(new DownloadSheet.Row(I18n.get(I18n.S.DL_AUDIO), DownloadFormat.size(audio.bytes, false),
-                    Glyph.Kind.NOTE, DownloadSheet.AUDIO_TILE, false));
-            jobs.add(Collections.singletonList(audio));
-        }
+        if (!options(post, photo, rows, jobs)) return;
         // TikTok's own download stays one tap away: its photo picker, slideshow video and watermark.
         rows.add(new DownloadSheet.Row(I18n.get(photo ? I18n.S.DL_PICK_PHOTOS : I18n.S.DL_ORIGINAL),
                 I18n.get(photo ? I18n.S.DL_PICK_PHOTOS_DESC : I18n.S.DL_ORIGINAL_DESC),
@@ -214,6 +188,70 @@ public final class DownloadsPlus {
             call.setResult(null);
         } catch (RuntimeException ignored) {
             ACTIVE.remove(key);
+        }
+    }
+
+    /** The photos, or each video quality, then the sound, as sheet rows with their jobs. False without media. */
+    private static boolean options(Object post, boolean photo, List<DownloadSheet.Row> rows,
+            List<List<DownloadModels.Item>> jobs) {
+        if (photo) {
+            List<DownloadModels.Item> pictures = DownloadModels.photos(DownloadModels.photoImages(post));
+            if (pictures.isEmpty()) return false;
+            rows.add(new DownloadSheet.Row(I18n.get(pictures.size() > 1 ? I18n.S.DL_ALL_PHOTOS : I18n.S.DL_PHOTO),
+                    pictures.size() > 1
+                            ? String.format(Locale.ROOT, I18n.get(I18n.S.DL_PHOTO_COUNT), pictures.size())
+                            : DownloadFormat.dimensions(pictures.get(0).width, pictures.get(0).height),
+                    Glyph.Kind.IMAGE, DownloadSheet.PHOTO_TILE, false));
+            jobs.add(pictures);
+        } else {
+            List<DownloadModels.Item> videos = DownloadModels.videos(post);
+            if (videos.isEmpty()) return false;
+            for (int i = 0; i < videos.size(); i++) {
+                DownloadModels.Item video = videos.get(i);
+                rows.add(new DownloadSheet.Row(DownloadFormat.resolution(video.width, video.height),
+                        DownloadFormat.size(video.bytes, video.estimated), Glyph.Kind.PLAY,
+                        DownloadSheet.VIDEO_TILE, i == 0 && videos.size() > 1));
+                jobs.add(Collections.singletonList(video));
+            }
+        }
+        DownloadModels.Item audio = DownloadModels.audio(post);
+        if (audio != null) {
+            rows.add(new DownloadSheet.Row(I18n.get(I18n.S.DL_AUDIO), DownloadFormat.size(audio.bytes, false),
+                    Glyph.Kind.NOTE, DownloadSheet.AUDIO_TILE, false));
+            jobs.add(Collections.singletonList(audio));
+        }
+        return true;
+    }
+
+    /**
+     * The download sheet for a post that has no TikTok download action, such as a story. Returns
+     * false when the post has nothing to save; {@code dismissed} runs when the sheet closes.
+     */
+    static boolean offer(Activity activity, Object post, Runnable dismissed) {
+        String id = String.valueOf(Reflect.call(post, "getAid"));
+        if (id.isEmpty() || "null".equals(id) || ACTIVE.contains(id)) return false;
+        List<DownloadSheet.Row> rows = new ArrayList<>();
+        List<List<DownloadModels.Item>> jobs = new ArrayList<>();
+        boolean photo = !DownloadModels.photoImages(post).isEmpty();
+        if (!options(post, photo, rows, jobs)) return false;
+        Object author = Reflect.call(post, "getAuthor");
+        Object handle = author == null ? null : Reflect.call(author, "getUniqueId");
+        AtomicBoolean submitted = new AtomicBoolean();
+        ACTIVE.add(id);
+        try {
+            DownloadSheet.show(activity, I18n.get(photo ? I18n.S.DL_TITLE_PHOTOS : I18n.S.DL_TITLE),
+                    handle == null ? null : "@" + handle, rows,
+                    which -> {
+                        if (which >= 0 && which < jobs.size()) submitted.set(download(activity, id, id, jobs.get(which)));
+                    },
+                    () -> {
+                        if (!submitted.get()) ACTIVE.remove(id);
+                        if (dismissed != null) dismissed.run();
+                    });
+            return true;
+        } catch (RuntimeException ignored) {
+            ACTIVE.remove(id);
+            return false;
         }
     }
 
@@ -275,15 +313,6 @@ public final class DownloadsPlus {
                 try { Toast.makeText(app, message, Toast.LENGTH_SHORT).show(); } catch (RuntimeException ignored) { }
             });
         } catch (RuntimeException ignored) { }
-    }
-
-    private static Activity activity(Context context) {
-        for (int depth = 0; context != null && depth < 10; depth++) {
-            if (context instanceof Activity) return (Activity) context;
-            if (!(context instanceof ContextWrapper)) return null;
-            context = ((ContextWrapper) context).getBaseContext();
-        }
-        return null;
     }
 
     private static Field modelField(Class<?> owner, Class<?> aweme) {

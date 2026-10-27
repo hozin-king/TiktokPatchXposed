@@ -186,6 +186,11 @@ final class Overlay {
         }
     }
 
+    /** Settings are read after the hooks go in; the watcher starts once they are known. */
+    static void settingsLoaded() {
+        MAIN.post(Overlay::schedule);
+    }
+
     /** The burn-in watcher runs only while the protection is on. */
     private static void schedule() {
         MAIN.removeCallbacks(WATCH);

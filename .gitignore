@@ -28,5 +28,8 @@ keystore.properties
 *.log
 hs_err_pid*
 
+# Local design and planning notes
+/notes/
+
 # Local test leftovers
 /test-ttmod-settings.xml

@@ -10,15 +10,15 @@ android {
         applicationId = "com.golda.patchertiktok"
         minSdk = 27
         targetSdk = 36
-        versionCode = 44
-        versionName = "4.1.0"
+        versionCode = 49
+        versionName = "4.4.0"
     }
     buildFeatures {
         buildConfig = true
     }
     androidResources {
         // UI strings live in code; only the LSPosed description is localized as a resource.
-        localeFilters += listOf("en", "ru", "uk", "be", "de", "es", "pt", "fr", "it", "pl", "tr", "in")
+        localeFilters += listOf("en", "ru", "uk", "be", "de", "es", "pt", "fr", "it", "pl", "tr", "in", "ar")
     }
 
     buildTypes {

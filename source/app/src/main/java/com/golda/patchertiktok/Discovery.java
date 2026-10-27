@@ -20,12 +20,18 @@ final class Discovery {
     private static String build;
     private static ApplicationInfo info;
     private static DexFinder finder;
+    /** Where compressed dex files are unpacked for the startup lookups; emptied afterwards. */
+    private static java.io.File scratch;
+    /** The APKs TikTok's class loader really reads (differs from the installed APK under LSPatch). */
+    private static java.util.Set<String> loaded = java.util.Collections.emptySet();
 
     private Discovery() { }
 
     static synchronized void init(Context context) {
         if (cache != null) return;
         info = context.getApplicationInfo();
+        scratch = new java.io.File(context.getCacheDir(), "tpx_dex");
+        loaded = Relocated.codePaths(context.getClassLoader());
         long version;
         try {
             android.content.pm.PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
@@ -109,7 +115,7 @@ final class Discovery {
 
     private static DexFinder finder() {
         if (finder == null) {
-            List<String> paths = new ArrayList<>();
+            java.util.Set<String> paths = new java.util.LinkedHashSet<>();
             paths.add(info.sourceDir);
             if (info.splitSourceDirs != null) {
                 for (String split : info.splitSourceDirs) {
@@ -117,11 +123,18 @@ final class Discovery {
                     if (!split.contains("split_config.")) paths.add(split);
                 }
             }
-            finder = new DexFinder(paths);
+            // Patched installs (LSPatch) load TikTok's code from a copy elsewhere.
+            paths.addAll(loaded);
+            finder = new DexFinder(new ArrayList<>(paths), scratch);
         }
         return finder;
     }
 
-    /** Releases the mapped dex files once startup lookups are done. */
-    static synchronized void release() { finder = null; }
+    /** Releases the mapped dex files once startup lookups are done, and any unpacked copies. */
+    static synchronized void release() {
+        finder = null;
+        Relocated.release();
+        java.io.File[] files = scratch == null ? null : scratch.listFiles();
+        if (files != null) for (java.io.File file : files) file.delete();
+    }
 }

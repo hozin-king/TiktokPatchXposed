@@ -170,6 +170,36 @@ final class StreakApi {
         return result;
     }
 
+    /** Every one-to-one chat whose streak is still alive, with its length, longest first. */
+    List<AutoStreakManager.Partner> partners(List<?> items, String account) throws ReflectiveOperationException {
+        Map<String, AutoStreakManager.Partner> found = new LinkedHashMap<>();
+        long now = System.currentTimeMillis() / 1000L;
+        for (Object item : items) {
+            if (!model.isInstance(item) || number(item, "streak") <= 0) continue;
+            if (StreakKeys.seconds(number(item, "endAt")) <= now) continue;
+            Object users = field(model, "userStreak").get(item);
+            if (!(users instanceof List<?>)) continue;
+            List<String> ids = new ArrayList<>();
+            for (Object user : (List<?>) users) {
+                if (user == null) continue;
+                Object value = field(user.getClass(), "uid").get(user);
+                ids.add(value instanceof Number ? Long.toString(((Number) value).longValue())
+                        : value instanceof String ? (String) value : null);
+            }
+            String peer = StreakPeerPolicy.directPeer(number(item, "convType"), account, ids);
+            Object conversation = field(model, "convId").get(item);
+            if (peer == null || !(conversation instanceof String) || ((String) conversation).isEmpty()) continue;
+            long days = number(item, "streak");
+            AutoStreakManager.Partner previous = found.get(conversation);
+            if (previous == null || previous.days < days) {
+                found.put((String) conversation, new AutoStreakManager.Partner((String) conversation, peer, days));
+            }
+        }
+        List<AutoStreakManager.Partner> result = new ArrayList<>(found.values());
+        result.sort((a, b) -> Long.compare(b.days, a.days));
+        return result;
+    }
+
     /** "active=N healthy=N atRisk=N expired=N" for one-to-one streaks; used in the check log. */
     String summary(List<?> items, long now) throws ReflectiveOperationException {
         int active = 0;

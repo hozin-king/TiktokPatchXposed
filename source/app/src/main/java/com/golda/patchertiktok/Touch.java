@@ -21,6 +21,7 @@ final class Touch {
     private static volatile float downY;
     private static volatile long downAt;
     private static volatile WeakReference<View> window = new WeakReference<>(null);
+    private static volatile WeakReference<Activity> activity = new WeakReference<>(null);
 
     private Touch() { }
 
@@ -39,6 +40,9 @@ final class Touch {
                     downY = event.getRawY();
                     downAt = SystemClock.uptimeMillis();
                     window = new WeakReference<>(owner.getDecorView());
+                    Activity host = param.thisObject instanceof Activity ? (Activity) param.thisObject
+                            : ((Dialog) param.thisObject).getOwnerActivity();
+                    activity = new WeakReference<>(host);
                     pressing = true;
                 } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
                     pressing = false;
@@ -61,4 +65,7 @@ final class Touch {
     static float y() { return downY; }
 
     static View window() { return window.get(); }
+
+    /** The activity the finger went down in, or the one that owns the dialog it went down in. */
+    static Activity activity() { return activity.get(); }
 }

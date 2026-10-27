@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.app.Application;
 import android.app.Instrumentation;
 import android.content.Context;
-import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
@@ -78,7 +77,7 @@ final class SettingsEntry {
         long now = SystemClock.uptimeMillis();
         if (now - lastOpen < 600) return;
         lastOpen = now;
-        Context host = activityOf(context);
+        Context host = Views.activity(context);
         if (host == null) host = resumed.get();
         if (host == null) host = context;
         if (host == null) return;
@@ -310,12 +309,4 @@ final class SettingsEntry {
         });
     }
 
-    private static Activity activityOf(Context context) {
-        Context current = context;
-        while (current instanceof ContextWrapper) {
-            if (current instanceof Activity) return (Activity) current;
-            current = ((ContextWrapper) current).getBaseContext();
-        }
-        return null;
-    }
 }

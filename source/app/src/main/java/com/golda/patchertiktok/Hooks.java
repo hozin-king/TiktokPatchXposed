@@ -143,11 +143,12 @@ final class Hooks {
         };
     }
 
+    /** A class by name; a TikTok class that moved to another package is found by its simple name. */
     static Class<?> findClass(String name, ClassLoader loader) {
         try {
             return Class.forName(name, false, loader == null ? ClassLoader.getSystemClassLoader() : loader);
         } catch (ClassNotFoundException | LinkageError missing) {
-            return null;
+            return Relocated.find(name, loader);
         }
     }
 

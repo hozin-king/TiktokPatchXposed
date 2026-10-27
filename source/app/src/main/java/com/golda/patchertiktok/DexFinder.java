@@ -16,7 +16,10 @@ import java.util.Set;
 /**
  * Finds obfuscated TikTok code by the string constants it uses. String literals survive
  * obfuscation, so this keeps hooks working across TikTok updates without name tables.
- * Dex files are mapped straight from the (stored, uncompressed) APK entries.
+ * Dex files are mapped straight from the APK when they are stored uncompressed, as in Google
+ * Play's builds. Some builds (betas, universal APKs) compress them: those are read from the copy
+ * ART keeps next to the APK (the .vdex) when it holds them, or else unpacked once into a scratch
+ * folder, which {@link Discovery} deletes after startup.
  */
 final class DexFinder {
     /** A method that loads one of the searched strings. */
@@ -31,8 +34,14 @@ final class DexFinder {
     }
 
     private final List<ByteBuffer> dexes = new ArrayList<>();
+    private final File scratch;
 
     DexFinder(List<String> apkPaths) {
+        this(apkPaths, null);
+    }
+
+    DexFinder(List<String> apkPaths, File scratch) {
+        this.scratch = scratch;
         for (String path : apkPaths) {
             try {
                 mapDexEntries(new File(path));
@@ -40,6 +49,30 @@ final class DexFinder {
                 RuntimeLog.log("dex index skipped " + new File(path).getName() + ": " + error.getClass().getSimpleName());
             }
         }
+    }
+
+    /** Classes defined anywhere in TikTok's code whose simple name is {@code simpleName}. */
+    List<String> classesNamed(String simpleName) {
+        byte[] tail = ("/" + simpleName + ";").getBytes(StandardCharsets.UTF_8);
+        List<String> found = new ArrayList<>();
+        for (ByteBuffer dex : dexes) {
+            int count = dex.getInt(0x60);
+            int definitions = dex.getInt(0x64);
+            int typeIds = dex.getInt(0x44);
+            int stringIds = dex.getInt(0x3C);
+            for (int index = 0; index < count; index++) {
+                int type = dex.getInt(definitions + index * 32);
+                int offset = dex.getInt(stringIds + dex.getInt(typeIds + type * 4) * 4);
+                while ((dex.get(offset++) & 0x80) != 0) { /* skip uleb128 length */ }
+                int end = offset;
+                while (dex.get(end) != 0) end++;
+                if (end - offset < tail.length) continue;
+                boolean match = true;
+                for (int at = 0; at < tail.length && match; at++) match = dex.get(end - tail.length + at) == tail[at];
+                if (match) found.add(typeName(dex, type));
+            }
+        }
+        return found;
     }
 
     /** Methods whose code contains a const-string of {@code literal}. */
@@ -144,6 +177,8 @@ final class DexFinder {
             long directorySize = end.getInt(eocd + 12) & 0xffffffffL;
             ByteBuffer directory = ByteBuffer.allocate((int) directorySize).order(ByteOrder.LITTLE_ENDIAN);
             channel.read(directory, directoryOffset);
+            List<long[]> packed = new ArrayList<>();
+            List<String> packedNames = new ArrayList<>();
             int position = 0;
             for (int entry = 0; entry < entries; entry++) {
                 if (directory.getInt(position) != 0x02014b50) break;
@@ -156,16 +191,116 @@ final class DexFinder {
                 byte[] nameBytes = new byte[nameLength];
                 for (int index = 0; index < nameLength; index++) nameBytes[index] = directory.get(position + 46 + index);
                 String name = new String(nameBytes, StandardCharsets.UTF_8);
+                long packedSize = directory.getInt(position + 20) & 0xffffffffL;
                 position += 46 + nameLength + extraLength + commentLength;
-                if (method != 0 || !name.startsWith("classes") || !name.endsWith(".dex")) continue;
+                if (!name.startsWith("classes") || !name.endsWith(".dex") || name.contains("/")) continue;
                 ByteBuffer local = ByteBuffer.allocate(30).order(ByteOrder.LITTLE_ENDIAN);
                 channel.read(local, localOffset);
                 long data = localOffset + 30 + (local.getShort(26) & 0xffff) + (local.getShort(28) & 0xffff);
+                if (method == 8) {
+                    packed.add(new long[]{data, packedSize, size});
+                    packedNames.add(name);
+                    continue;
+                }
+                if (method != 0) continue;
                 MappedByteBuffer mapped = channel.map(FileChannel.MapMode.READ_ONLY, data, size);
                 mapped.order(ByteOrder.LITTLE_ENDIAN);
                 dexes.add(mapped);
             }
+            if (packed.isEmpty()) return;
+            int fromVdex = mapVdex(apk);
+            if (fromVdex >= packed.size()) {
+                RuntimeLog.log("dex index: " + apk.getName() + " read from vdex (" + fromVdex + ")");
+                return;
+            }
+            if (scratch == null) throw new IOException("compressed dex and no scratch folder");
+            long start = System.currentTimeMillis();
+            for (int index = 0; index < packed.size(); index++) {
+                long[] entry = packed.get(index);
+                File out = new File(scratch, apk.getName() + "-" + packedNames.get(index));
+                if (out.length() != entry[2]) unpack(channel, entry[0], entry[1], out);
+                dexes.add(map(out));
+            }
+            RuntimeLog.log("dex index: " + apk.getName() + " unpacked " + packed.size() + " dex in "
+                    + (System.currentTimeMillis() - start) + " ms");
         }
+    }
+
+    /** Inflates one compressed APK entry into {@code out}. */
+    private static void unpack(FileChannel channel, long data, long packedSize, File out) throws IOException {
+        File folder = out.getParentFile();
+        if (folder != null && !folder.isDirectory() && !folder.mkdirs()) throw new IOException("no scratch folder");
+        java.util.zip.Inflater inflater = new java.util.zip.Inflater(true);
+        byte[] input = new byte[1 << 16];
+        byte[] output = new byte[1 << 18];
+        try (java.io.FileOutputStream stream = new java.io.FileOutputStream(out)) {
+            long position = data;
+            long left = packedSize;
+            while (!inflater.finished()) {
+                if (inflater.needsInput()) {
+                    if (left <= 0) throw new IOException("truncated dex entry");
+                    ByteBuffer chunk = ByteBuffer.wrap(input, 0, (int) Math.min(input.length, left));
+                    int read = channel.read(chunk, position);
+                    if (read <= 0) throw new IOException("truncated dex entry");
+                    position += read;
+                    left -= read;
+                    inflater.setInput(input, 0, read);
+                }
+                int produced = inflater.inflate(output);
+                if (produced > 0) stream.write(output, 0, produced);
+                else if (inflater.needsDictionary()) throw new IOException("bad dex entry");
+            }
+        } catch (java.util.zip.DataFormatException broken) {
+            out.delete();
+            throw new IOException(broken);
+        } finally {
+            inflater.end();
+        }
+    }
+
+    private static ByteBuffer map(File file) throws IOException {
+        try (RandomAccessFile input = new RandomAccessFile(file, "r"); FileChannel channel = input.getChannel()) {
+            MappedByteBuffer mapped = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
+            mapped.order(ByteOrder.LITTLE_ENDIAN);
+            return mapped;
+        }
+    }
+
+    /**
+     * When the APK's dex files are compressed, ART keeps an uncompressed copy of them inside the
+     * .vdex next to it (oat/<isa>/<name>.vdex). The dex files are found there by their headers,
+     * so this does not depend on the vdex format version. Returns how many were mapped.
+     */
+    private int mapVdex(File apk) {
+        // The app may pass through oat/ but not list it, so each instruction set is tried by name.
+        File oat = new File(apk.getParentFile(), "oat");
+        String base = apk.getName().replaceFirst("\\.apk$", "");
+        for (String isa : new String[]{"arm64", "arm", "x86_64", "x86", "riscv64"}) {
+            File vdex = new File(new File(oat, isa), base + ".vdex");
+            if (!vdex.isFile()) continue;
+            List<ByteBuffer> found = new ArrayList<>();
+            try {
+                ByteBuffer file = map(vdex);
+                int limit = file.capacity() - 0x70;
+                for (int at = 0; at <= limit; at += 4) {
+                    if (file.getInt(at) != 0x0a786564) continue;           // "dex\n"
+                    if (file.getInt(at + 0x28) != 0x12345678 || file.getInt(at + 0x24) != 0x70) continue;
+                    int size = file.getInt(at + 0x20);
+                    if (size < 0x70 || size > file.capacity() - at) continue;
+                    ByteBuffer slice = ((ByteBuffer) file.duplicate().position(at).limit(at + size)).slice();
+                    slice.order(ByteOrder.LITTLE_ENDIAN);
+                    found.add(slice);
+                    at += (size & ~3) - 4;
+                }
+            } catch (IOException | RuntimeException unreadable) {
+                continue;
+            }
+            if (!found.isEmpty()) {
+                dexes.addAll(found);
+                return found.size();
+            }
+        }
+        return 0;
     }
 
     // ---- strings --------------------------------------------------------------------------

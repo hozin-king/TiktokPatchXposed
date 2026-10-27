@@ -44,11 +44,28 @@ final class Module {
             run("clean links", CleanLinks::install);
             run("rendered ads", () -> RenderedAdSkip.install(loader));
             run("invisible mode", () -> Ghost.install(loader));
+            run("refresh rate", RefreshRate::install);
+            run("story download", () -> StoryDownload.install(loader));
+            run("avatar download", () -> AvatarDownload.install(loader));
+            run("message time", () -> MessageTime.install(loader));
+            run("chat menu", () -> ChatMenu.install(loader));
             run("google login", () -> googleLoginFix(loader));
+            run("trackers", Analytics::installTrackers);
         }
         // Every process: the settings screen and the restart trampoline are swapped in here.
         run("settings host", SettingsEntry::installHost);
         Hooks.findAndHook(Application.class, "attach", Context.class, new Hooks.Hook() {
+            @Override protected void before(Hooks.Call param) {
+                // TikTok loads and caches its fonts while attaching, so the font goes in first.
+                if (!main || !(param.args[0] instanceof Context)) return;
+                Context base = (Context) param.args[0];
+                Prefs.load(base);
+                if (Prefs.on(Prefs.FONT)) {
+                    run("code index", () -> Discovery.init(base));
+                    run("font", () -> FontSwap.install(base, loader));
+                }
+            }
+
             @Override protected void after(Hooks.Call param) {
                 if (STARTED.compareAndSet(false, true)) startup((Application) param.thisObject, loader, main);
             }
@@ -58,10 +75,13 @@ final class Module {
     /** Runs once the Application context exists, before TikTok's own onCreate. */
     private static void startup(Application app, ClassLoader loader, boolean main) {
         Prefs.load(app);
+        if (main) RuntimeLog.attach(app);
+        if (main) Overlay.settingsLoaded();
         if (main) run("accent color", () -> {
             AccentColor.install();
             AccentColor.installFor(app);
             AccentColor.installIcons(loader);
+            AccentColor.applyDarkMode(app);
         });
         run("region", () -> RegionSpoof.install(loader));
         run("device spoof", () -> DeviceSpoof.install(loader));
@@ -70,8 +90,22 @@ final class Module {
             run("recommendation", () -> Recommendation.install(app, loader));
         }
         if (!main) return;
-        I18n.use(app.getResources().getConfiguration().getLocales().get(0));
-        Discovery.init(app);
+        run("language", () -> I18n.use(app.getResources().getConfiguration().getLocales().get(0)));
+        run("code index", () -> Discovery.init(app));
+        run("friend card", () -> FeedFilter.installCardInsertion(loader));
+        run("unmute", () -> Unmute.install(loader));
+        run("hd upload", () -> HdUpload.install(loader));
+        run("read receipts", () -> ReadReceipts.install(loader));
+        run("read all", () -> InboxReadAll.install(loader));
+        run("comment author", () -> CommentAuthor.install(loader));
+        run("native auto-scroll", () -> AutoScroll.installNative(loader));
+        run("exact time", () -> ExactTime.install(loader));
+        run("exact counts", () -> ExactCounts.install(loader));
+        run("keep brightness", () -> Brightness.install(loader));
+        run("device checks", () -> DeviceChecks.install(loader));
+        run("playback quality", () -> PlaybackQuality.install(loader));
+        run("photo quality", () -> PhotoQuality.install(loader));
+        run("analytics", () -> Analytics.install(loader));
         run("comment translation", () -> {
             Runnable configure = () -> CommentTranslate.configure(Prefs.on(Prefs.AUTO_TRANSLATE), Prefs.text(Prefs.TRANSLATE_EXCLUDE));
             configure.run();

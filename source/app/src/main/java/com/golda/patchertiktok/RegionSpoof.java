@@ -15,8 +15,13 @@ import java.util.TimeZone;
  *
  * TikTok decides the region from the SIM (TelephonyManager, SubscriptionInfo, system
  * properties), its own request parameters, which it fills from the system locale and the network,
- * and the time zone name it reports with every request. All of them are replaced; the language is
- * left alone so recommendations stay in the user's language, and clocks keep the real time.
+ * and the time zone it reports with every request. All of them are replaced; the language is left
+ * alone so recommendations stay in the user's language, and clocks keep the real time.
+ *
+ * The SIM and its carrier fields follow the selected region. The country of the feed (region,
+ * sys_region, current_region, residence and the time zone) follows the same region, or the own
+ * recommendation region when the user picked one: then the SIM still unlocks content where TikTok
+ * is limited, while the feed comes from the other country.
  */
 final class RegionSpoof {
     /** TikTok's feature store that supplies the common request parameters. */
@@ -31,12 +36,53 @@ final class RegionSpoof {
         Regions.Region selected = Regions.find(Prefs.region());
         if (selected == null || region != null) return;
         region = selected;
+        Regions.Region feed = Regions.find(Prefs.feedRegion());
+        if (feed == null) feed = selected;
         hookTelephony(selected);
         hookSubscriptionInfo(selected);
         hookSystemProperties(selected);
-        hookRequestParams(loader, selected);
-        hookTimeZone(selected);
-        RuntimeLog.log("region spoof: " + selected.iso + " " + selected.operator);
+        hookRequestParams(loader, selected, feed);
+        String zone = hookTimeZone(feed);
+        int offsets = zone == null ? 0 : hookOffsetParam(loader, zone);
+        RuntimeLog.log("region spoof: " + selected.iso + " " + selected.operator + ", feed " + feed.iso
+                + ", offset params=" + offsets);
+    }
+
+    /**
+     * Requests also carry the zone's offset (f_global_timezone_offset in seconds, f_global_timezone
+     * in hours, both from the raw offset). With the name spoofed and the offset real, abroad they
+     * say "Berlin, but UTC+3", which gives the country away. Only these features change, to the
+     * spoofed zone's raw offset; clocks keep the real one.
+     */
+    private static int hookOffsetParam(ClassLoader loader, String zone) {
+        Class<?> producer = Hooks.findClass(FEATURE_PRODUCER, loader);
+        if (producer == null) return 0;
+        int raw = TimeZone.getTimeZone(zone).getRawOffset();
+        Map<String, Integer> features = new HashMap<>();
+        features.put("f_global_timezone_offset", raw / 1000);
+        features.put("f_global_timezone", Math.max(-12, Math.min(12, raw / 3_600_000)));
+        int hooks = 0;
+        // Request parameters read them as text ("10800"), other code as numbers.
+        for (Method method : producer.getDeclaredMethods()) {
+            boolean numeric = method.getName().startsWith("getNumericFeature") && method.getReturnType() == Number.class;
+            boolean text = method.getName().startsWith("getStringFeature") && method.getReturnType() == String.class;
+            if (!numeric && !text) continue;
+            int nameIndex = -1;
+            Class<?>[] p = method.getParameterTypes();
+            for (int index = 0; index < p.length; index++) {
+                if (p[index] == String.class) { nameIndex = index; break; }
+            }
+            if (nameIndex < 0) continue;
+            int name = nameIndex;
+            Hooks.hook(method, new Hooks.Hook() {
+                @Override protected void after(Hooks.Call param) {
+                    Integer value = features.get(param.args[name]);
+                    if (value != null) param.setResult(numeric ? value : String.valueOf(value));
+                }
+            });
+            hooks++;
+        }
+        return hooks;
     }
 
     private static void hookTelephony(Regions.Region selected) {
@@ -117,20 +163,24 @@ final class RegionSpoof {
     /**
      * Common request parameters ("region", "sys_region", "mcc_mnc"...) come from
      * FeatureProducer.getStringFeature("f_global_..."). sys_region and region otherwise
-     * follow the system locale, which would still report the real country.
+     * follow the system locale, which would still report the real country. The carrier ones
+     * describe the SIM; the others the country of the feed.
      */
-    private static void hookRequestParams(ClassLoader loader, Regions.Region selected) {
+    private static void hookRequestParams(ClassLoader loader, Regions.Region selected, Regions.Region feed) {
         Class<?> producer = Hooks.findClass(FEATURE_PRODUCER, loader);
         if (producer == null) {
             RuntimeLog.log("request region params unavailable: FeatureProducer not found");
             return;
         }
-        String country = selected.iso.toUpperCase(Locale.ROOT);
+        String sim = selected.iso.toUpperCase(Locale.ROOT);
+        String country = feed.iso.toUpperCase(Locale.ROOT);
         Map<String, String> features = new HashMap<>();
-        for (String name : new String[]{"f_global_region", "f_global_sys_region", "f_global_op_region",
-                "f_global_carrier_region", "f_global_current_region", "f_global_residence"}) {
+        for (String name : new String[]{"f_global_region", "f_global_sys_region", "f_global_current_region",
+                "f_global_residence"}) {
             features.put(name, country);
         }
+        features.put("f_global_op_region", sim);
+        features.put("f_global_carrier_region", sim);
         features.put("f_global_carrier_region_v2", selected.mcc());
         features.put("f_global_mcc_mnc", selected.operator);
         int hooks = 0;
@@ -157,13 +207,14 @@ final class RegionSpoof {
     /**
      * Requests carry the time zone name (Europe/Moscow gives the country away). Only the reported
      * name changes: offsets, and therefore every clock and date in the app, stay real. java.time
-     * derives its zone from the name, so the conversion keeps the real one.
+     * derives its zone from the name, so the conversion keeps the real one. Returns the spoofed
+     * zone name, or null when the real one already belongs to the country.
      */
-    private static void hookTimeZone(Regions.Region selected) {
+    private static String hookTimeZone(Regions.Region selected) {
         TimeZone current = TimeZone.getDefault();
         String real = current.getID();
         String zone = zoneFor(selected.iso, current.getOffset(System.currentTimeMillis()));
-        if (zone == null || zone.equals(real)) return;
+        if (zone == null || zone.equals(real)) return null;
         ThreadLocal<int[]> converting = ThreadLocal.withInitial(() -> new int[1]);
         try {
             Hooks.findAndHook(TimeZone.class, "getID", new Hooks.Hook() {
@@ -178,7 +229,9 @@ final class RegionSpoof {
             });
         } catch (Throwable error) {
             RuntimeLog.log("time zone spoof unavailable: " + error.getClass().getSimpleName());
+            return null;
         }
+        return zone;
     }
 
     /** The country's zone with the same current offset as the real one, else its main zone. */

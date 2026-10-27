@@ -31,7 +31,6 @@ import java.util.Map;
  */
 final class CommentMedia {
     private static final String COMMENT = "com.ss.android.ugc.aweme.comment.model.Comment";
-    private static final String RECYCLER = "androidx.recyclerview.widget.RecyclerView";
     private static final String ROW = "com.golda.patchertiktok.commentMediaRow";
 
     private static Class<?> commentType;
@@ -88,7 +87,7 @@ final class CommentMedia {
             if (view.getVisibility() != View.VISIBLE) continue;
             view.getLocationOnScreen(at);
             if (x < at[0] || y < at[1] || x >= at[0] + view.getWidth() || y >= at[1] + view.getHeight()) continue;
-            if (isRecycler(view)) {
+            if (Views.isRecycler(view)) {
                 ViewGroup list = (ViewGroup) view;
                 for (int i = 0; i < list.getChildCount(); i++) {
                     View child = list.getChildAt(i);
@@ -282,7 +281,7 @@ final class CommentMedia {
         if (!(list instanceof ViewGroup)) return null;
         ViewGroup group = (ViewGroup) list;
         for (int i = group.getChildCount() - 1; i >= 1; i--) {
-            TextView text = firstText(group.getChildAt(i));
+            TextView text = Views.firstText(group.getChildAt(i));
             if (text != null) return text;
         }
         return null;
@@ -292,17 +291,6 @@ final class CommentMedia {
         View row = text;
         while (row.getParent() instanceof View && row.getParent() != list) row = (View) row.getParent();
         return row;
-    }
-
-    private static TextView firstText(View view) {
-        if (view instanceof TextView && ((TextView) view).getText().length() > 0) return (TextView) view;
-        if (!(view instanceof ViewGroup)) return null;
-        ViewGroup group = (ViewGroup) view;
-        for (int i = 0; i < group.getChildCount(); i++) {
-            TextView found = firstText(group.getChildAt(i));
-            if (found != null) return found;
-        }
-        return null;
     }
 
     private static int colorOf(Drawable drawable) {
@@ -317,10 +305,4 @@ final class CommentMedia {
         return (0.299f * Color.red(color) + 0.587f * Color.green(color) + 0.114f * Color.blue(color)) / 255f;
     }
 
-    private static boolean isRecycler(View view) {
-        for (Class<?> type = view.getClass(); type != null && type != View.class; type = type.getSuperclass()) {
-            if (RECYCLER.equals(type.getName())) return true;
-        }
-        return false;
-    }
 }

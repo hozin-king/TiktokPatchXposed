@@ -99,13 +99,68 @@ final class CommentTranslate {
             Hooks.hook(anchors.reset, manual);
             ready = true;
             RuntimeLog.log("comment auto-translate: native cell hook installed");
+            RuntimeLog.log("comment auto-translate: native switch hooks=" + hookNativeSwitch(loader));
         } catch (Throwable error) {
             fail("anchors missing or ambiguous; feature skipped", error);
         }
     }
 
+    /** Log text in TikTok's inline "See translation" renderer of the newer comment translation. */
+    private static final String INLINE_BUTTON = "addTranslateStatusButton, aid:";
+    private static final String CAPTION_KEVA = "com.ss.android.ugc.aweme.service.ICaptionKevaService";
+    /** True once TikTok drew its inline translation button: its own translation runs the cells. */
+    private static volatile boolean inline;
+
+    /**
+     * The newer comment translation shows its button, and translates on its own, only while
+     * TikTok's "Translate comments" switch is on. The renderer asks the caption service for it;
+     * that service reads one static switch, which is turned on while auto-translate is.
+     */
+    private static int hookNativeSwitch(ClassLoader loader) throws Throwable {
+        Class<?> keva = required(CAPTION_KEVA, loader);
+        Set<String> asked = new LinkedHashSet<>();
+        for (String renderer : Discovery.methodsUsing(INLINE_BUTTON)) {
+            String[] parts = renderer.split("#", 2);
+            Class<?> owner = Hooks.findClass(parts[0], loader);
+            if (owner == null) continue;
+            for (Method method : owner.getDeclaredMethods()) {
+                if (!method.getName().equals(parts[1])) continue;
+                Hooks.hook(method, new Hooks.Hook() {
+                    @Override protected void before(Hooks.Call call) { inline = true; }
+                });
+            }
+            for (String call : Discovery.invokedBy(parts[0], parts[1])) {
+                if (call.startsWith(CAPTION_KEVA + "#")) asked.add(call.substring(CAPTION_KEVA.length() + 1));
+            }
+        }
+        Class<?> services = required("com.ss.android.ugc.aweme.framework.services.ServiceManager", loader);
+        Object impl = services.getMethod("getService", Class.class).invoke(services.getMethod("get").invoke(null), keva);
+        if (impl == null) return 0;
+        int hooks = 0;
+        for (String name : asked) {
+            Method getter;
+            try {
+                getter = impl.getClass().getMethod(name);
+            } catch (NoSuchMethodException missing) { continue; }
+            if (getter.getReturnType() != boolean.class) continue;
+            // The service only forwards; the switch itself is the one static (): boolean it reads.
+            for (Method target : resolve(loader, Discovery.invokedBy(impl.getClass().getName(), name))) {
+                if (!Modifier.isStatic(target.getModifiers()) || target.getReturnType() != boolean.class
+                        || target.getParameterCount() != 0) continue;
+                Hooks.hook(target, new Hooks.Hook() {
+                    @Override protected void after(Hooks.Call call) {
+                        if (enabled && !Boolean.TRUE.equals(call.getResult())) call.setResult(true);
+                    }
+                });
+                hooks++;
+            }
+        }
+        return hooks;
+    }
+
     private static void bound(Object cell) throws Throwable {
-        if (Looper.myLooper() != Looper.getMainLooper()) return;
+        // TikTok's own translation is on and draws these cells; the older presenter would fight it.
+        if (inline || Looper.myLooper() != Looper.getMainLooper()) return;
         View view = (View) anchors.itemView.get(cell);
         Object presenter = anchors.presenter(cell);
         if (presenter == null) return; // TikTok can choose another presenter for its experiment.

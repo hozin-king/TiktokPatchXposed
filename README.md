@@ -2,7 +2,7 @@
 
 **Indonesia** | [Русский](README-RU.md) | [English](README-EN.md)
 
-> Teruji pada **TikTok 47.1.4** dari Google Play dan **Android 16**. Sebagian besar fitur
+> Teruji pada **TikTok 47.4.3 dan 47.1.4** dari Google Play dan **Android 16**. Sebagian besar fitur
 > menemukan sendiri lokasi yang dibutuhkan di dalam TikTok, sehingga tetap berfungsi setelah
 > TikTok diperbarui. Jika setelah pembaruan TikTok ada yang berhenti bekerja, lihat
 > «Status fitur» di pengaturan modul lalu tulis ke
@@ -14,7 +14,7 @@ banyak hal kecil: gulir otomatis di mana saja, warna kustom dan tema AMOLED, pen
 elemen, bendera negara, mode tak terlihat, dan stiker pengganti api streak. Semua pengaturan
 berada langsung di dalam TikTok dan tampak seperti bawaan aplikasi.
 
-Versi saat ini — **4.1.0**.
+Versi saat ini — **4.4.0** (merge upstream hik0w, fitur custom fork dipertahankan).
 
 ### Fitur uji coba 🧪
 

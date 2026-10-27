@@ -9,6 +9,10 @@ import java.util.List;
 /** Removes ads, LIVE, "people you may know", paid/shop and AI videos, and the user's own filter matches from video lists. */
 final class FeedFilter {
     private static final String SNAPSHOT = "com.golda.patchertiktok.cleanFeed";
+    /** awemeType of the card TikTok makes itself, and cardInsertInfo.cardType of the server one. */
+    private static final int FRIEND_CARD_TYPE = 4004;
+    private static final int FRIEND_CARD_SERVER_TYPE = 49;
+    private static final String FRIEND_CARD_TAG = "friend_recommend_card";
     private static final String[] SUGGESTION_METHODS = {
             "getRelationTextKey", "getRecType", "getFriendTypeStr", "getLabelInfo", "getTabText", "getText", "getKey"};
     private static final String[] SUGGESTION_FIELDS = {
@@ -224,6 +228,8 @@ final class FeedFilter {
         if (type instanceof Number && ((Number) type).intValue() == 101) return true;
         if (Reflect.getBoolean(item, "isLive") || Reflect.callBoolean(item, "isLive")
                 || Reflect.callBoolean(item, "isLiveReplay")) return true;
+        // A LIVE room cell carries its room; an empty struct alone does not count.
+        if (Reflect.call(Reflect.call(item, "getRoomFeedCellStruct"), "getNewLiveRoomData") != null) return true;
         return equalsIgnoreCase(Reflect.get(item, "contentType"), "live")
                 || equalsIgnoreCase(Reflect.get(item, "content_type"), "live")
                 || equalsIgnoreCase(Reflect.get(item, "schema"), "aweme://live");
@@ -233,8 +239,118 @@ final class FeedFilter {
         return value instanceof String && expected.equalsIgnoreCase((String) value);
     }
 
+    /** The full-screen "People you may know" card: a TikTok-made item, or a server card of the same kind. */
+    static boolean isFriendCard(Object aweme) {
+        if (aweme == null) return false;
+        Object type = Reflect.call(aweme, "getAwemeType");
+        if (type instanceof Number && ((Number) type).intValue() == FRIEND_CARD_TYPE) return true;
+        Object card = Reflect.call(aweme, "getCardInsertInfo");
+        if (card == null) card = Reflect.get(aweme, "cardInsertInfo");
+        if (card == null) return false;
+        Object cardType = Reflect.call(card, "getCardType");
+        if (!(cardType instanceof Number)) cardType = Reflect.get(card, "cardType");
+        return cardType instanceof Number && ((Number) cardType).intValue() == FRIEND_CARD_SERVER_TYPE;
+    }
+
+    /**
+     * TikTok also adds the card to an already loaded page by itself, without passing through
+     * FeedItemList's setter. The method that does it is found by the tag it gives the card and its
+     * shape (int, String, List, Function0) -> Pair; returning null there is TikTok's own "nothing inserted".
+     * Install after Discovery.init.
+     */
+    static void installCardInsertion(ClassLoader loader) {
+        java.util.Set<String> owners = new java.util.LinkedHashSet<>();
+        for (String hit : Discovery.methodsUsing(FRIEND_CARD_TAG)) owners.add(hit.substring(0, hit.indexOf('#')));
+        int hooked = 0;
+        for (String owner : owners) {
+            Class<?> type = Hooks.findClass(owner, loader);
+            if (type == null) continue;
+            for (Method method : type.getDeclaredMethods()) {
+                Class<?>[] p = method.getParameterTypes();
+                if (p.length != 4 || p[0] != int.class || p[1] != String.class || p[2] != List.class
+                        || !"kotlin.jvm.functions.Function0".equals(p[3].getName())
+                        || !"kotlin.Pair".equals(method.getReturnType().getName())) continue;
+                try {
+                    Hooks.hook(method, new Hooks.Hook() {
+                        @Override protected void before(Hooks.Call param) {
+                            if (Prefs.on(Prefs.ACQUAINTANCES)) param.setResult(null);
+                        }
+                    });
+                    hooked++;
+                } catch (Throwable ignored) { }
+            }
+        }
+        RuntimeLog.log("friend card insertion: " + hooked + " hook(s)");
+        installInsertions(loader);
+    }
+
+    private static final String PANEL = "com.ss.android.ugc.aweme.feed.panel.BaseListFragmentPanel";
+
+    /**
+     * TikTok also puts videos, LIVE rooms and cards into a feed that is already loaded, past
+     * FeedItemList: the panel's insertItemList takes a payload holding the list (found by its
+     * "fall to downgrade" log line), and a positional insert takes (int, List) (found by its
+     * "not response for position" line). Both lists are filtered; an insert left empty is skipped.
+     */
+    private static void installInsertions(ClassLoader loader) {
+        Class<?> panel = Hooks.findClass(PANEL, loader);
+        if (panel == null) return;
+        int hooked = 0;
+        for (String hit : Discovery.methodsUsing("insertItemList fall to downgrade logic")) {
+            for (Method method : own(panel, hit)) {
+                if (method.getParameterCount() != 1 || method.getParameterTypes()[0].isPrimitive()) continue;
+                Hooks.hook(method, new Hooks.Hook() {
+                    @Override protected void before(Hooks.Call param) throws IllegalAccessException {
+                        Object payload = param.args[0];
+                        if (payload == null) return;
+                        for (java.lang.reflect.Field field : payload.getClass().getDeclaredFields()) {
+                            if (field.getType() != List.class || java.lang.reflect.Modifier.isStatic(field.getModifiers())) continue;
+                            field.setAccessible(true);
+                            Object value = field.get(payload);
+                            if (!(value instanceof List<?>) || ((List<?>) value).isEmpty()) continue;
+                            List<?> filtered = filter((List<?>) value);
+                            if (filtered == value) continue;
+                            if (filtered.isEmpty()) {
+                                param.setResult(null);
+                                return;
+                            }
+                            field.set(payload, filtered);
+                        }
+                    }
+                });
+                hooked++;
+            }
+        }
+        for (String hit : Discovery.methodsUsing("insert called,but not response for position:")) {
+            for (Method method : own(panel, hit)) {
+                Class<?>[] p = method.getParameterTypes();
+                if (p.length != 2 || p[0] != int.class || p[1] != List.class) continue;
+                Hooks.hook(method, new Hooks.Hook() {
+                    @Override protected void before(Hooks.Call param) {
+                        if (!(param.args[1] instanceof List<?>)) return;
+                        List<?> filtered = filter((List<?>) param.args[1]);
+                        if (filtered == param.args[1]) return;
+                        if (filtered.isEmpty()) param.setResult(null);
+                        else param.args[1] = filtered;
+                    }
+                });
+                hooked++;
+            }
+        }
+        RuntimeLog.log("feed insertions: " + hooked + " hook(s)");
+    }
+
+    private static List<Method> own(Class<?> type, String hit) {
+        List<Method> found = new ArrayList<>();
+        String[] parts = hit.split("#", 2);
+        if (parts.length != 2 || !parts[0].equals(type.getName())) return found;
+        for (Method method : type.getDeclaredMethods()) if (method.getName().equals(parts[1])) found.add(method);
+        return found;
+    }
+
     private static boolean isSuggestedAcquaintance(Object aweme) {
         if (aweme == null) return false;
+        if (isFriendCard(aweme)) return true;
         Object relation = Reflect.call(aweme, "getRelationRecommendInfo");
         if (relation == null) relation = Reflect.get(aweme, "relationRecommendInfo");
         boolean familiar = Reflect.callBoolean(aweme, "isFamiliar") || Reflect.getBoolean(aweme, "isFamiliar");
