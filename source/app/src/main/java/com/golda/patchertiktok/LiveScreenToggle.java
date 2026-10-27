@@ -5,6 +5,8 @@ import android.media.MediaPlayer;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
+import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -37,6 +39,10 @@ final class LiveScreenToggle {
     private static final String PREVIEW_TAG = "live_video_preview";
     /** Overlay preview video per activity (weak, ikut GC saat activity hancur). */
     private static final WeakHashMap<Activity, View> PREVIEWS = new WeakHashMap<>();
+    /** View kamera asli yang disembunyikan saat diganti VideoView, per activity. */
+    private static final WeakHashMap<Activity, View> REPLACED_CAMERAS = new WeakHashMap<>();
+    /** VideoView pengganti kamera, per activity. */
+    private static final WeakHashMap<Activity, VideoView> REPLACEMENT_VIDEOS = new WeakHashMap<>();
 
     private LiveScreenToggle() { }
 
@@ -122,30 +128,84 @@ final class LiveScreenToggle {
         RuntimeLog.log("live toggle button added");
     }
 
-    /** Tampilkan overlay preview video galeri di atas preview kamera. */
+    /**
+     * Ganti view kamera dengan VideoView: cari view kamera (TextureView /
+     * SurfaceView terbesar di hierarki layar live), sembunyikan view itu
+     * (INVISIBLE, bukan GONE, supaya layout tidak bergeser), lalu sisipkan
+     * VideoView di parent yang sama, tepat setelah view kamera, dengan
+     * LayoutParams yang sama — jadi video menempati persis area kamera,
+     * tombol dan UI live lainnya tetap bisa ditekan.
+     * Video yang diputar adalah playlist yang sama dengan yang dikirim
+     * ke stream, dan loop-nya mengikuti setelan mode di pengaturan modul
+     * (sekali / loop daftar / loop satu video). Preview dibisukan total.
+     * Kalau view kamera tidak ketemu (belum ter-layout / bukan
+     * TextureView-SurfaceView), jatuh ke overlay full-screen lama supaya
+     * fitur tetap jalan, bukan gagal total.
+     */
     private static void showPreview(Activity activity) {
-        hidePreview(activity); // buang yang lama dulu
-        List<String> list = LiveVideoSource.playlist();
+        hidePreview(activity); // buang yang lama dulu, kembalikan kamera
+        final List<String> list = LiveVideoSource.playlist();
         if (list.isEmpty()) return;
-        String path = list.get(0);
+        final int mode = (int) Prefs.number(Prefs.LIVE_VIDEO_MODE);
         try {
-            ViewGroup root = (ViewGroup) activity.findViewById(android.R.id.content);
-            if (root == null) return;
-            FrameLayout overlay = new FrameLayout(activity);
-            overlay.setTag(PREVIEW_TAG);
-            VideoView vv = new VideoView(activity);
-            vv.setVideoPath(path);
+            final VideoView vv = new VideoView(activity);
+            vv.setTag(PREVIEW_TAG);
+            final int[] idx = {0};
+            final Runnable[] playAt = new Runnable[1];
+            playAt[0] = () -> {
+                if (idx[0] < 0 || idx[0] >= list.size()) return;
+                vv.setVideoPath(list.get(idx[0]));
+                vv.start();
+            };
             vv.setOnPreparedListener((MediaPlayer mp) -> {
-                mp.setLooping(true);
+                // LOOP_ONE saja yang looping di level MediaPlayer; mode lain
+                // maju lewat OnCompletionListener di bawah.
+                mp.setLooping(mode == LiveVideoSource.MODE_LOOP_ONE);
                 // Preview visual saja: bisukan total supaya tidak berebut
                 // audio focus dengan pemutar video TikTok (FYP jadi hening).
                 mp.setVolume(0f, 0f);
                 vv.start();
             });
+            vv.setOnCompletionListener((MediaPlayer mp) -> {
+                if (mode == LiveVideoSource.MODE_LOOP_ONE) return;
+                idx[0]++;
+                if (idx[0] >= list.size()) {
+                    if (mode == LiveVideoSource.MODE_LOOP_LIST) {
+                        idx[0] = 0;
+                    } else {
+                        return; // MODE_ONCE: berhenti di video terakhir
+                    }
+                }
+                playAt[0].run();
+            });
             vv.setOnErrorListener((mp, what, extra) -> {
                 RuntimeLog.log("live preview error: " + what + "," + extra);
                 return true;
             });
+            // Jalur utama: ganti view kamera di tempatnya.
+            View decor = activity.getWindow().getDecorView();
+            View camera = decor != null ? findCameraView(decor) : null;
+            if (camera != null && camera.getParent() instanceof ViewGroup) {
+                ViewGroup parent = (ViewGroup) camera.getParent();
+                int index = parent.indexOfChild(camera);
+                camera.setVisibility(View.INVISIBLE);
+                parent.addView(vv, index + 1, camera.getLayoutParams());
+                synchronized (REPLACED_CAMERAS) {
+                    REPLACED_CAMERAS.put(activity, camera);
+                    REPLACEMENT_VIDEOS.put(activity, vv);
+                }
+                playAt[0].run();
+                RuntimeLog.log("live preview: camera view replaced ("
+                        + camera.getClass().getSimpleName() + " "
+                        + camera.getWidth() + "x" + camera.getHeight()
+                        + ", " + list.size() + " video, mode=" + mode + ")");
+                return;
+            }
+            // Fallback: overlay full-screen (perilaku lama).
+            ViewGroup root = (ViewGroup) activity.findViewById(android.R.id.content);
+            if (root == null) return;
+            FrameLayout overlay = new FrameLayout(activity);
+            overlay.setTag(PREVIEW_TAG);
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -157,14 +217,70 @@ final class LiveScreenToggle {
             synchronized (PREVIEWS) {
                 PREVIEWS.put(activity, overlay);
             }
-            RuntimeLog.log("live preview shown: " + path);
+            playAt[0].run();
+            RuntimeLog.log("live preview shown (fallback overlay, camera view not found): "
+                    + list.size() + " video, mode=" + mode);
         } catch (Throwable t) {
             RuntimeLog.log("live preview failed: " + t);
         }
     }
 
-    /** Sembunyikan overlay preview video galeri. */
+    /**
+     * Cari view kamera: TextureView / SurfaceView (VideoView adalah
+     * subclass SurfaceView, tapi preview lama sudah dibuang oleh
+     * hidePreview() sebelum pencarian, jadi yang ketemu adalah view
+     * TikTok sendiri) dengan luas terbesar yang sudah ter-layout.
+     * Tidak bergantung pada nama kelas TikTok yang diobfuscate.
+     */
+    private static View findCameraView(View root) {
+        View best = null;
+        long bestArea = 0;
+        if (root instanceof TextureView || root instanceof SurfaceView) {
+            // Jangan ambil VideoView pengganti kita sendiri bila masih ada.
+            if (PREVIEW_TAG.equals(root.getTag())) return null;
+            if (root.getWidth() > 0 && root.getHeight() > 0) {
+                best = root;
+                bestArea = (long) root.getWidth() * root.getHeight();
+            }
+        }
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = findCameraView(group.getChildAt(i));
+                if (found != null) {
+                    long area = (long) found.getWidth() * found.getHeight();
+                    if (area > bestArea) {
+                        best = found;
+                        bestArea = area;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    /** Sembunyikan preview video galeri dan kembalikan view kamera asli. */
     private static void hidePreview(Activity activity) {
+        // Jalur pengganti kamera: lepas VideoView, tampilkan lagi kamera.
+        VideoView replacement;
+        View camera;
+        synchronized (REPLACED_CAMERAS) {
+            replacement = REPLACEMENT_VIDEOS.remove(activity);
+            camera = REPLACED_CAMERAS.remove(activity);
+        }
+        if (replacement != null) {
+            try {
+                replacement.stopPlayback();
+                ViewGroup parent = (ViewGroup) replacement.getParent();
+                if (parent != null) parent.removeView(replacement);
+            } catch (Throwable ignored) { }
+        }
+        if (camera != null) {
+            try {
+                camera.setVisibility(View.VISIBLE);
+            } catch (Throwable ignored) { }
+        }
+        // Jalur overlay fallback lama.
         View old;
         synchronized (PREVIEWS) {
             old = PREVIEWS.remove(activity);
